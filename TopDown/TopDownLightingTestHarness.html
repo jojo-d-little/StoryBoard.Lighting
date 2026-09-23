@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PixiJS Top-Down Lighting Test Harness</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#20242a;color:#eee;font-family:system-ui,sans-serif}
+#ui{position:fixed;z-index:10;left:12px;top:12px;padding:12px 14px;background:rgba(20,22,26,.95);border:1px solid #555;border-radius:8px;min-width:290px;box-shadow:0 4px 20px #0008}
+#ui h2{margin:0 0 8px;font-size:16px} #ui label{display:block;margin:8px 0 3px;font-size:13px}
+#ui input[type=range]{width:100%} button{margin-top:9px}
+.small{font-size:12px;color:#aaa;margin-top:8px;line-height:1.4}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px}
+.tab-btn{margin:0;padding:6px 10px;border:1px solid #666;background:#2b313a;color:#d7dde7;border-radius:6px;cursor:pointer;font-size:12px}
+.tab-btn.active{background:#3f516a;border-color:#8fb0de;color:#f3f7ff}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+#host{width:100%;height:100%} canvas{display:block}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
+<script src="./TopDownLightingPipelineComponent.js"></script>
+</head>
+<body>
+<div id="ui">
+<h2>PixiJS Top-Down Lighting Test Harness</h2>
+<label>Load image</label>
+<input id="file" type="file" accept="image/*">
+
+<div class="tabs" id="controlTabs">
+  <button class="tab-btn active" data-tab="tabLighting">Lighting</button>
+  <button class="tab-btn" data-tab="tabBlockers">Blockers</button>
+  <button class="tab-btn" data-tab="tabPipeline">Pipeline</button>
+</div>
+
+<div id="tabLighting" class="tab-panel active">
+
+<label>Room ambient: <span id="ambientValue">0.35</span></label>
+<input id="ambient" type="range" min="0" max="1" step=".01" value=".35">
+
+<label>Point-light radius: <span id="radiusValue">180</span> px</label>
+<input id="radius" type="range" min="20" max="600" value="180">
+
+<label>Point-light intensity: <span id="intensityValue">1.50</span></label>
+<input id="intensity" type="range" min="0" max="4" step=".05" value="1.5">
+
+<label>Point-light color</label>
+<input id="color" type="color" value="#fff2c0">
+
+<label>Point-light outer color</label>
+<input id="colorOuter" type="color" value="#fff2c0">
+
+<label>Point-light gradient exponent: <span id="lightGradientExponentValue">1.00</span></label>
+<input id="lightGradientExponent" type="range" min="0.25" max="4" step="0.05" value="1">
+
+<label>New light direction: <span id="lightDirectionValue">90</span> deg</label>
+<input id="lightDirection" type="range" min="0" max="360" step="1" value="90">
+
+<label>New light beam angle: <span id="lightConeAngleValue">360</span> deg</label>
+<input id="lightConeAngle" type="range" min="1" max="360" step="1" value="360">
+
+<label>Light height: <span id="lightHeightValue">2.0</span> cells</label>
+<input id="lightHeight" type="range" min="0.25" max="12" step="0.25" value="2">
+
+<label>New light motion</label>
+<select id="lightMotionMode">
+  <option value="static" selected>Static</option>
+  <option value="sway">Directional sway</option>
+  <option value="flicker">Brightness flicker</option>
+  <option value="sway-flicker">Sway + flicker</option>
+</select>
+
+<label>Sway amount: <span id="swayAmountValue">18</span> px</label>
+<input id="swayAmount" type="range" min="0" max="80" step="1" value="18">
+
+<label>Sway speed: <span id="swaySpeedValue">0.80</span> Hz</label>
+<input id="swaySpeed" type="range" min="0" max="3" step="0.05" value="0.8">
+
+<label>Sway direction: <span id="swayDirectionValue">90</span> deg</label>
+<input id="swayDirection" type="range" min="0" max="360" step="1" value="90">
+
+<label>Flicker amount: <span id="flickerAmountValue">0.35</span></label>
+<input id="flickerAmount" type="range" min="0" max="1" step="0.01" value="0.35">
+
+<label>Flicker speed: <span id="flickerSpeedValue">8.0</span> Hz</label>
+<input id="flickerSpeed" type="range" min="0" max="20" step="0.1" value="8">
+
+<label>Flicker style</label>
+<select id="flickerStyle">
+  <option value="swell" selected>Flicker swell (classic)</option>
+  <option value="flame">Flicker flame (candle-like)</option>
+</select>
+
+<button id="clear">Clear point lights</button>
+</div>
+
+<div id="tabBlockers" class="tab-panel">
+
+<label>Cell size: <span id="cellSizeValue">40</span> px</label>
+<input id="cellSize" type="range" min="8" max="128" step="1" value="40">
+
+<label>Blocker diameter: <span id="blockerSizeValue">1.00</span> cells</label>
+<input id="blockerSize" type="range" min="0.25" max="2" step="0.25" value="1">
+
+<label>Blocker shape</label>
+<select id="blockerShape">
+  <option value="square" selected>Square footprint</option>
+  <option value="circle">Circle footprint</option>
+</select>
+
+<label>Blocker height: <span id="blockerHeightValue">1.0</span> cells</label>
+<input id="blockerHeight" type="range" min="0" max="8" step="0.25" value="1">
+
+<label>Blocker shadow strength: <span id="blockerStrengthValue">1.00</span></label>
+<input id="blockerStrength" type="range" min="0" max="1" step="0.05" value="1">
+
+<button id="clearBlockers">Clear blockers</button>
+</div>
+
+<div id="tabPipeline" class="tab-panel">
+
+<label>Shadow soften: <span id="shadowSoftenValue">1.5</span></label>
+<input id="shadowSoften" type="range" min="0" max="4" step="0.1" value="1.5">
+
+<label><input id="previewLightMap" type="checkbox"> Preview light map texture</label>
+<select id="previewMode">
+  <option value="direct" selected>Preview mode: direct texture</option>
+  <option value="shader">Preview mode: shader sampled</option>
+  <option value="occlusion">Preview mode: occlusion stage</option>
+</select>
+
+<label>Compose mode</label>
+<select id="composeMode">
+  <option value="formal-shader" selected>Formal shader compose</option>
+  <option value="debug-overlay">Debug multiply overlay</option>
+</select>
+</div>
+<div id="status" class="small">
+Choose an image above. Then click the image to place point lights.
+</div>
+</div>
+<div id="host"></div>
+
+<script>
+const app = new PIXI.Application({
+  resizeTo: window,
+  backgroundColor: 0x20242a,
+  antialias: true
+});
+document.getElementById('host').appendChild(app.view);
+
+let sceneSprite = null;
+let sceneTexture = null;
+let lightPassContainer = null;
+let lightPassSprite = null;
+let lightPassFilter = null;
+let lightMapTexture = null;
+let occlusionPassContainer = null;
+let occlusionPassSprite = null;
+let occlusionPassFilter = null;
+let occlusionTexture = null;
+let occlusionBlurContainer = null;
+let occlusionBlurSprite = null;
+let occlusionBlurFilter = null;
+let occlusionSoftTexture = null;
+let lightOverlaySprite = null;
+let composeFilter = null;
+let previewFilter = null;
+let composedTexture = null;
+let previewTexture = null;
+let composePassContainer = null;
+let composePassSprite = null;
+let previewPassContainer = null;
+let previewPassSprite = null;
+let blockerOverlay = null;
+let W = 1, H = 1;
+let lights = [];
+let blockers = [];
+const MAX_LIGHTS = 64;
+const MAX_BLOCKERS = 64;
+const lightPositions = new Float32Array(MAX_LIGHTS * 2);
+const lightIntensities = new Float32Array(MAX_LIGHTS);
+// [GLOBAL]/[PER-LIGHT] Per-light elevation in cell units. A missing authored
+// value falls back to the room-level lightHeight control.
+const lightHeightCells = new Float32Array(MAX_LIGHTS);
+// [GLOBAL] Per-light inner/core color packed as RGB triplets in 0..1.
+// Layout: [r0,g0,b0, r1,g1,b1, ...].
+const lightInnerColors = new Float32Array(MAX_LIGHTS * 3);
+// [GLOBAL] Per-light outer/edge color packed as RGB triplets in 0..1.
+const lightOuterColors = new Float32Array(MAX_LIGHTS * 3);
+// [GLOBAL] Per-light radial gradient exponent (1=linear blend).
+// <1 pushes outer color inward; >1 keeps inner color tighter to core.
+const lightGradientExponents = new Float32Array(MAX_LIGHTS);
+// [GLOBAL] Per-light forward direction in screen/image space.
+// Packed as x,y pairs: [lx0, ly0, lx1, ly1, ...].
+const lightDirections = new Float32Array(MAX_LIGHTS * 2);
+// [GLOBAL] Per-light cone broadcast angle in degrees.
+// 360 means omnidirectional; smaller values create spot/flashlight beams.
+const lightConeAnglesDeg = new Float32Array(MAX_LIGHTS);
+const blockerPositions = new Float32Array(MAX_BLOCKERS * 2);
+// [CELL] Per-cell footprint property (half extent in cell units).
+const blockerHalfSizesCells = new Float32Array(MAX_BLOCKERS);
+// [CELL] Per-cell vertical property used for height-based occlusion.
+const blockerHeightsCells = new Float32Array(MAX_BLOCKERS);
+// [CELL] Per-cell optical density: 0 allows light through, 1 blocks fully.
+const blockerStrengths = new Float32Array(MAX_BLOCKERS);
+// [CELL] Per-cell footprint shape: 0=square, 1=circle.
+const blockerShapeModes = new Float32Array(MAX_BLOCKERS);
+
+// Pass contract:
+// - Light positions and radius are always in source-image pixels.
+// - Light pass shades into lightMapTexture using image-space coordinates.
+// - Final combine can run via formal shader compose or debug multiply overlay.
+
+// Shader glossary (quick reference):
+// - Pixel space: coordinates measured in image pixels (0..W, 0..H).
+// - Cell space: coordinates measured in grid cells (for engine-friendly logic).
+// - UV space: normalized texture coords in 0..1, used for texture2D sampling.
+// - gl_FragCoord: current fragment (pixel) position in the active render target.
+// - Uniforms: read-only inputs passed from JS to shaders each frame/pass.
+// - Channel packing: storing multiple data fields in RGBA texture channels.
+//   Here: occlusion R=encoded blocker height, G=blocker strength.
+// - Encode/decode scale: maps cell-height floats into 0..1 texture range and back.
+// - Visibility vs shadow: visibility=1 means full light; shadow=1 means full block.
+// - Compose: final color = sceneColor * lightColor (per pixel).
+
+const file = document.getElementById('file');
+const ambient = document.getElementById('ambient');
+const radius = document.getElementById('radius');
+const intensity = document.getElementById('intensity');
+const color = document.getElementById('color');
+const colorOuter = document.getElementById('colorOuter');
+const lightGradientExponent = document.getElementById('lightGradientExponent');
+const lightDirection = document.getElementById('lightDirection');
+const lightConeAngle = document.getElementById('lightConeAngle');
+const cellSize = document.getElementById('cellSize');
+const blockerSize = document.getElementById('blockerSize');
+const blockerShape = document.getElementById('blockerShape');
+const blockerHeight = document.getElementById('blockerHeight');
+const blockerStrength = document.getElementById('blockerStrength');
+const lightHeight = document.getElementById('lightHeight');
+const lightMotionMode = document.getElementById('lightMotionMode');
+const swayAmount = document.getElementById('swayAmount');
+const swaySpeed = document.getElementById('swaySpeed');
+const swayDirection = document.getElementById('swayDirection');
+const flickerAmount = document.getElementById('flickerAmount');
+const flickerSpeed = document.getElementById('flickerSpeed');
+const flickerStyle = document.getElementById('flickerStyle');
+const shadowSoften = document.getElementById('shadowSoften');
+const previewLightMap = document.getElementById('previewLightMap');
+const previewMode = document.getElementById('previewMode');
+const composeMode = document.getElementById('composeMode');
+const tabButtons = Array.from(document.querySelectorAll('#controlTabs .tab-btn'));
+let activeTabId = 'tabLighting';
+
+function hasAnimatedLights() {
+  return lights.some(function(light) {
+    return light.motionMode === 'sway' || light.motionMode === 'flicker' || light.motionMode === 'sway-flicker';
+  });
+}
+
+function syncPlacementModeUi() {
+  if (!sceneSprite) return;
+
+  if (activeTabId === 'tabPipeline') {
+    sceneSprite.cursor = 'default';
+  } else {
+    sceneSprite.cursor = 'crosshair';
+  }
+}
+
+function activateTab(tabId) {
+  activeTabId = tabId;
+  tabButtons.forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+
+  const panels = document.querySelectorAll('.tab-panel');
+  panels.forEach(function(panel) {
+    panel.classList.toggle('active', panel.id === tabId);
+  });
+
+  syncPlacementModeUi();
+}
+
+tabButtons.forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    activateTab(btn.dataset.tab);
+    updateStatus();
+  });
+});
+
+function pxFromCellCenter(cellIndex, cellPx) {
+  return (cellIndex + 0.5) * cellPx;
+}
+
+function upsertBlocker(cellX, cellY, sizeCells, shape, heightCells, strength) {
+  // [CELL] Keep authored footprint snapped to quarter-cell increments.
+  const snappedSize = Math.max(0.25, Math.min(2.0, Math.round(sizeCells * 4.0) / 4.0));
+  const shapeMode = shape === 'circle' ? 1 : 0;
+  const index = blockers.findIndex(function(b) {
+    return b.cellX === cellX && b.cellY === cellY;
+  });
+  const next = {
+    cellX: cellX,
+    cellY: cellY,
+    sizeCells: snappedSize,
+    shapeMode: shapeMode,
+    heightCells: heightCells,
+    strength: strength
+  };
+  if (index >= 0) {
+    blockers[index] = next;
+  } else {
+    blockers.push(next);
+  }
+}
+
+function rebuildBlockerOverlay() {
+  if (!blockerOverlay) return;
+
+  blockerOverlay.clear();
+  blockerOverlay.lineStyle(1, 0xff6b6b, 0.95);
+
+  const cellPx = +cellSize.value;
+  for (let i = 0; i < blockers.length; i++) {
+    const b = blockers[i];
+    const centerX = pxFromCellCenter(b.cellX, cellPx);
+    const centerY = pxFromCellCenter(b.cellY, cellPx);
+    const sidePx = Math.max(1, b.sizeCells * cellPx);
+    if (b.shapeMode === 1) {
+      blockerOverlay.drawCircle(centerX, centerY, sidePx * 0.5);
+    } else {
+      blockerOverlay.drawRect(
+        centerX - sidePx * 0.5,
+        centerY - sidePx * 0.5,
+        sidePx,
+        sidePx
+      );
+    }
+  }
+}
+
+function applyDisplayMode() {
+  if (!sceneSprite || !sceneTexture || !lightMapTexture) return;
+
+  if (previewLightMap.checked) {
+    if (previewMode.value === 'occlusion') {
+      sceneSprite.texture = occlusionSoftTexture || occlusionTexture || lightMapTexture;
+      sceneSprite.filters = null;
+    } else if (previewMode.value === 'shader') {
+      sceneSprite.texture = previewTexture || lightMapTexture;
+      sceneSprite.filters = null;
+    } else {
+      // Show pass output texture directly for debugability.
+      sceneSprite.texture = lightMapTexture;
+      sceneSprite.filters = null;
+    }
+    if (lightOverlaySprite) lightOverlaySprite.visible = false;
+  } else {
+    if (composeMode.value === 'debug-overlay') {
+      sceneSprite.texture = sceneTexture;
+      sceneSprite.filters = null;
+      if (lightOverlaySprite) lightOverlaySprite.visible = true;
+    } else {
+      sceneSprite.texture = composedTexture || sceneTexture;
+      sceneSprite.filters = null;
+      if (lightOverlaySprite) lightOverlaySprite.visible = false;
+    }
+  }
+}
+
+function updateLabels() {
+  document.getElementById('ambientValue').textContent = (+ambient.value).toFixed(2);
+  document.getElementById('radiusValue').textContent = radius.value;
+  document.getElementById('intensityValue').textContent = (+intensity.value).toFixed(2);
+  document.getElementById('lightGradientExponentValue').textContent = (+lightGradientExponent.value).toFixed(2);
+  document.getElementById('lightDirectionValue').textContent = lightDirection.value;
+  document.getElementById('lightConeAngleValue').textContent = lightConeAngle.value;
+  document.getElementById('cellSizeValue').textContent = cellSize.value;
+  document.getElementById('blockerSizeValue').textContent = (+blockerSize.value).toFixed(2);
+  document.getElementById('blockerHeightValue').textContent = (+blockerHeight.value).toFixed(1);
+  document.getElementById('blockerStrengthValue').textContent = (+blockerStrength.value).toFixed(2);
+  document.getElementById('lightHeightValue').textContent = (+lightHeight.value).toFixed(1);
+  document.getElementById('swayAmountValue').textContent = swayAmount.value;
+  document.getElementById('swaySpeedValue').textContent = (+swaySpeed.value).toFixed(2);
+  document.getElementById('swayDirectionValue').textContent = swayDirection.value;
+  document.getElementById('flickerAmountValue').textContent = (+flickerAmount.value).toFixed(2);
+  document.getElementById('flickerSpeedValue').textContent = (+flickerSpeed.value).toFixed(1);
+  document.getElementById('shadowSoftenValue').textContent = (+shadowSoften.value).toFixed(1);
+}
+
+function hexRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+// Accept light color from multiple engine payload shapes:
+// - '#rrggbb'
+// - [r,g,b] where each channel is 0..1 or 0..255
+// - {r,g,b} where each channel is 0..1 or 0..255
+// Falls back to provided default color when value is missing/invalid.
+function normalizeLightColor01(lightColor, fallback01) {
+  if (typeof lightColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(lightColor)) {
+    const rgb = hexRgb(lightColor);
+    return [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
+  }
+
+  if (Array.isArray(lightColor) && lightColor.length >= 3) {
+    const rawR = Number(lightColor[0]);
+    const rawG = Number(lightColor[1]);
+    const rawB = Number(lightColor[2]);
+    if (Number.isFinite(rawR) && Number.isFinite(rawG) && Number.isFinite(rawB)) {
+      const usesByteRange = rawR > 1 || rawG > 1 || rawB > 1;
+      if (usesByteRange) {
+        return [clamp01(rawR / 255), clamp01(rawG / 255), clamp01(rawB / 255)];
+      }
+      return [clamp01(rawR), clamp01(rawG), clamp01(rawB)];
+    }
+  }
+
+  if (lightColor && typeof lightColor === 'object') {
+    const rawR = Number(lightColor.r);
+    const rawG = Number(lightColor.g);
+    const rawB = Number(lightColor.b);
+    if (Number.isFinite(rawR) && Number.isFinite(rawG) && Number.isFinite(rawB)) {
+      const usesByteRange = rawR > 1 || rawG > 1 || rawB > 1;
+      if (usesByteRange) {
+        return [clamp01(rawR / 255), clamp01(rawG / 255), clamp01(rawB / 255)];
+      }
+      return [clamp01(rawR), clamp01(rawG), clamp01(rawB)];
+    }
+  }
+
+  return fallback01;
+}
+
+function fract(value) {
+  return value - Math.floor(value);
+}
+
+function smoothstep01(t) {
+  return t * t * (3.0 - 2.0 * t);
+}
+
+// Simple deterministic 1D hash for stable pseudo-random flicker bands.
+function hash11(value) {
+  return fract(Math.sin(value * 127.1 + 311.7) * 43758.5453123);
+}
+
+// Smooth random function in [0,1] by interpolating between hashed cells.
+function smoothRandom1D(t) {
+  const i = Math.floor(t);
+  const f = t - i;
+  const a = hash11(i);
+  const b = hash11(i + 1.0);
+  return a + (b - a) * smoothstep01(f);
+}
+
+// Candle-like flicker profile with mostly bright output and occasional dips.
+function flameFlickerNoise01(nowSeconds, hz, phase) {
+  const speed = Math.max(0.001, hz);
+  const t = nowSeconds * speed;
+  const nSlow = smoothRandom1D(t * 1.0 + phase * 0.17);
+  const nMid = smoothRandom1D(t * 2.7 + phase * 0.53);
+  const nFast = smoothRandom1D(t * 6.1 + phase * 1.11);
+
+  // Weighted blend keeps flame alive without perfectly periodic pumping.
+  const blended = clamp01(nSlow * 0.55 + nMid * 0.30 + nFast * 0.15);
+
+  // Gamma-like shaping biases toward brighter values (flames spend more
+  // time near bright state than dim state).
+  const brightBias = Math.pow(blended, 0.45);
+
+  // Rare fast dips add candle-like instability and avoid smooth swelling.
+  const dip = Math.pow(1.0 - nFast, 6.0);
+  return clamp01(brightBias - dip * 0.35);
+}
+
+function rebuildLightingMap() {
+  if (!lightPassFilter || !lightPassContainer || !lightMapTexture) return;
+  if (!occlusionPassFilter || !occlusionPassContainer || !occlusionTexture) return;
+
+  // Pipeline note:
+  // 1) CPU packs light/blocker data into flat uniform arrays.
+  // 2) Occlusion pass rasterizes blocker properties into a texture.
+  // 3) Optional blur softens the occlusion texture.
+  // 4) Light pass samples the occlusion texture along light rays.
+  // 5) Compose pass multiplies scene by light map.
+
+  // [GLOBAL] Engine-wide lighting controls.
+  const a = +ambient.value;
+  const [cr,cg,cb] = hexRgb(color.value);
+  const [ocr,ocg,ocb] = hexRgb(colorOuter.value);
+  const defaultLightInnerColor01 = [cr / 255, cg / 255, cb / 255];
+  const defaultLightOuterColor01 = [ocr / 255, ocg / 255, ocb / 255];
+  const defaultLightGradientExponent = Math.max(0.01, +lightGradientExponent.value);
+  const R = +radius.value;
+  const I = +intensity.value;
+  const cellPx = +cellSize.value;
+  const lightHeightCellsGlobal = +lightHeight.value;
+  const swayAmountPxGlobal = +swayAmount.value;
+  const swayHzGlobal = +swaySpeed.value;
+  const swayDirectionDegGlobal = +swayDirection.value;
+  const flickerDepthGlobal = +flickerAmount.value;
+  const flickerHzGlobal = +flickerSpeed.value;
+  const flickerStyleGlobal = normalizeFlickerStyle(flickerStyle.value);
+  const nowSeconds = performance.now() * 0.001;
+  const count = Math.min(lights.length, MAX_LIGHTS);
+  const blockerCount = Math.min(blockers.length, MAX_BLOCKERS);
+
+  for (let i = 0; i < count; i++) {
+    const light = lights[i];
+    const mode = light.motionMode || 'static';
+    const phase = light.phase || 0;
+    let animatedX = light.x;
+    let animatedY = light.y;
+    let intensityScale = 1.0;
+
+    // Per-light motion overrides (engine payload) with global UI fallback.
+    const lightSwayAmountPx = light.swayAmountPx == null ? swayAmountPxGlobal : Number(light.swayAmountPx);
+    const lightSwayHz = light.swayHz == null
+      ? (light.swaySpeedHz == null ? swayHzGlobal : Number(light.swaySpeedHz))
+      : Number(light.swayHz);
+    const lightSwayDirectionDeg = light.swayDirectionDeg == null ? swayDirectionDegGlobal : Number(light.swayDirectionDeg);
+    const lightSwayRadians = lightSwayDirectionDeg * Math.PI / 180.0;
+    const lightFlickerAmount = light.flickerAmount == null ? flickerDepthGlobal : Number(light.flickerAmount);
+    const lightFlickerHz = light.flickerHz == null
+      ? (light.flickerSpeedHz == null ? flickerHzGlobal : Number(light.flickerSpeedHz))
+      : Number(light.flickerHz);
+    const lightFlickerStyle = normalizeFlickerStyle(light.flickerStyle == null ? flickerStyleGlobal : light.flickerStyle);
+    const baseIntensityScale = light.intensityScale == null ? 1.0 : Number(light.intensityScale);
+    const effectiveLightHeightCells = light.lightHeightCells == null
+      ? lightHeightCellsGlobal
+      : Math.max(0.25, Number(light.lightHeightCells));
+
+    if (mode === 'sway' || mode === 'sway-flicker') {
+      const swing = Math.sin((nowSeconds * lightSwayHz * Math.PI * 2.0) + phase);
+      animatedX += Math.cos(lightSwayRadians) * lightSwayAmountPx * swing;
+      animatedY += Math.sin(lightSwayRadians) * lightSwayAmountPx * swing;
+    }
+
+    if (mode === 'flicker' || mode === 'sway-flicker') {
+      if (lightFlickerStyle === 'flame') {
+        const flame01 = flameFlickerNoise01(nowSeconds, lightFlickerHz, phase);
+        intensityScale = 1.0 - lightFlickerAmount + lightFlickerAmount * flame01;
+      } else {
+        // Swell style: the original smooth periodic flicker behavior.
+        const n1 = Math.sin((nowSeconds * lightFlickerHz * 3.7) + phase);
+        const n2 = Math.sin((nowSeconds * lightFlickerHz * 8.9) + phase * 1.7);
+        const noise01 = (n1 * 0.6 + n2 * 0.4) * 0.5 + 0.5;
+        intensityScale = 1.0 - lightFlickerAmount + lightFlickerAmount * noise01;
+      }
+    }
+
+    lightPositions[i * 2] = animatedX;
+    lightPositions[i * 2 + 1] = animatedY;
+    lightIntensities[i] = Math.max(0.0, baseIntensityScale * intensityScale);
+    lightHeightCells[i] = effectiveLightHeightCells;
+
+    // Per-light gradient colors:
+    // - Inner color is the core tint near the emitter center.
+    // - Outer color is the edge tint near the radius boundary.
+    // - Missing values fall back to room-global color controls.
+    const lightInnerColor01 = normalizeLightColor01(light.color, defaultLightInnerColor01);
+    const lightOuterColor01 = normalizeLightColor01(light.outerColor, defaultLightOuterColor01);
+    const gradientExponent = light.gradientExponent == null
+      ? defaultLightGradientExponent
+      : Math.max(0.01, Number(light.gradientExponent));
+    lightInnerColors[i * 3] = lightInnerColor01[0];
+    lightInnerColors[i * 3 + 1] = lightInnerColor01[1];
+    lightInnerColors[i * 3 + 2] = lightInnerColor01[2];
+    lightOuterColors[i * 3] = lightOuterColor01[0];
+    lightOuterColors[i * 3 + 1] = lightOuterColor01[1];
+    lightOuterColors[i * 3 + 2] = lightOuterColor01[2];
+    lightGradientExponents[i] = gradientExponent;
+
+    // Direction model (screen-space):
+    // - 0 deg points right (+X)
+    // - 90 deg points down (+Y), matching canvas coordinates.
+    // We store a unit vector so shader math is a cheap dot product.
+    const directionRad = (light.directionDeg || 0) * Math.PI / 180.0;
+    lightDirections[i * 2] = Math.cos(directionRad);
+    lightDirections[i * 2 + 1] = Math.sin(directionRad);
+
+    // Cone/broadcast angle model:
+    // - 360 deg means emit equally in all directions.
+    // - Smaller angles narrow the beam (flashlight-like behavior).
+    lightConeAnglesDeg[i] = Math.max(1.0, Math.min(360.0, light.coneAngleDeg == null ? 360.0 : light.coneAngleDeg));
+  }
+  for (let i = count; i < MAX_LIGHTS; i++) {
+    lightPositions[i * 2] = -1e6;
+    lightPositions[i * 2 + 1] = -1e6;
+    lightIntensities[i] = 0.0;
+    lightInnerColors[i * 3] = 0.0;
+    lightInnerColors[i * 3 + 1] = 0.0;
+    lightInnerColors[i * 3 + 2] = 0.0;
+    lightOuterColors[i * 3] = 0.0;
+    lightOuterColors[i * 3 + 1] = 0.0;
+    lightOuterColors[i * 3 + 2] = 0.0;
+    lightGradientExponents[i] = 1.0;
+    lightHeightCells[i] = 0.0;
+    lightDirections[i * 2] = 1.0;
+    lightDirections[i * 2 + 1] = 0.0;
+    lightConeAnglesDeg[i] = 360.0;
+  }
+
+  for (let i = 0; i < blockerCount; i++) {
+    const b = blockers[i];
+    // Keep authored values stable and deterministic before feeding GPU state.
+    const diameterCells = Math.max(0.25, Math.min(2.0, Math.round(b.sizeCells * 4.0) / 4.0));
+    blockerPositions[i * 2] = pxFromCellCenter(b.cellX, cellPx);
+    blockerPositions[i * 2 + 1] = pxFromCellCenter(b.cellY, cellPx);
+    // [CELL] Blocker footprint and height are content-facing per-cell properties.
+    blockerHalfSizesCells[i] = Math.max(0.01, diameterCells * 0.5);
+    blockerShapeModes[i] = b.shapeMode === 1 ? 1.0 : 0.0;
+    blockerHeightsCells[i] = Math.max(0.0, b.heightCells);
+    blockerStrengths[i] = Math.max(0.0, Math.min(1.0, b.strength == null ? 1.0 : b.strength));
+  }
+  for (let i = blockerCount; i < MAX_BLOCKERS; i++) {
+    blockerPositions[i * 2] = -1e6;
+    blockerPositions[i * 2 + 1] = -1e6;
+    blockerHalfSizesCells[i] = 0.0;
+    blockerShapeModes[i] = 0.0;
+    blockerHeightsCells[i] = 0.0;
+    blockerStrengths[i] = 0.0;
+  }
+
+  // Stage A (occlusion): [CELL] blocker data becomes a sampled texture.
+  occlusionPassFilter.uniforms.uImageSize = [W, H];
+  occlusionPassFilter.uniforms.uCellSizePx = cellPx;
+  occlusionPassFilter.uniforms.uBlockerCount = blockerCount;
+  occlusionPassFilter.uniforms.uBlockerPosPx = blockerPositions;
+  occlusionPassFilter.uniforms.uBlockerHalfSizeCells = blockerHalfSizesCells;
+  occlusionPassFilter.uniforms.uBlockerShapeMode = blockerShapeModes;
+  occlusionPassFilter.uniforms.uBlockerHeightCells = blockerHeightsCells;
+  occlusionPassFilter.uniforms.uBlockerStrength = blockerStrengths;
+
+  // Stage A.5 (occlusion blur): [GLOBAL] room-level shadow softening control.
+  if (occlusionBlurFilter) {
+    occlusionBlurFilter.blur = +shadowSoften.value;
+    occlusionBlurFilter.quality = 1;
+  }
+
+  // Stage B (lighting): [GLOBAL] light model and light list.
+  lightPassFilter.uniforms.uAmbient = a;
+  lightPassFilter.uniforms.uRadiusPx = R;
+  lightPassFilter.uniforms.uIntensity = I;
+  lightPassFilter.uniforms.uLightCount = count;
+  lightPassFilter.uniforms.uLightPosPx = lightPositions;
+  lightPassFilter.uniforms.uLightIntensity = lightIntensities;
+  lightPassFilter.uniforms.uLightInnerColor = lightInnerColors;
+  lightPassFilter.uniforms.uLightOuterColor = lightOuterColors;
+  lightPassFilter.uniforms.uLightGradientExp = lightGradientExponents;
+  lightPassFilter.uniforms.uLightDir = lightDirections;
+  lightPassFilter.uniforms.uLightConeDeg = lightConeAnglesDeg;
+  lightPassFilter.uniforms.uImageSize = [W, H];
+  lightPassFilter.uniforms.uCellSizePx = cellPx;
+  lightPassFilter.uniforms.uLightHeightCells = lightHeightCells;
+
+  // Pass 1: blocker occlusion stage into a dedicated texture.
+  app.renderer.render(occlusionPassContainer, {
+    renderTexture: occlusionTexture,
+    clear: true
+  });
+
+  // Pass 2: soften occlusion map (optional, controlled by shadowSoften).
+  if (occlusionBlurContainer && occlusionSoftTexture) {
+    app.renderer.render(occlusionBlurContainer, {
+      renderTexture: occlusionSoftTexture,
+      clear: true
+    });
+  }
+
+  // Pass 3: light accumulation samples softened occlusion texture.
+  app.renderer.render(lightPassContainer, {
+    renderTexture: lightMapTexture,
+    clear: true
+  });
+
+  // Pass 4: formal shader compose in source-image space.
+  if (composePassContainer && composedTexture) {
+    app.renderer.render(composePassContainer, {
+      renderTexture: composedTexture,
+      clear: true
+    });
+  }
+
+  // Pass 5: shader-sampled light-map preview in source-image space.
+  if (previewPassContainer && previewTexture) {
+    app.renderer.render(previewPassContainer, {
+      renderTexture: previewTexture,
+      clear: true
+    });
+  }
+}
+
+function createOcclusionPassFilter() {
+  const fragment = `
+    precision mediump float;
+
+    uniform vec2 uImageSize;
+    uniform float uCellSizePx;
+    uniform float uBlockerCount;
+    uniform vec2 uBlockerPosPx[${MAX_BLOCKERS}];
+    uniform float uBlockerHalfSizeCells[${MAX_BLOCKERS}];
+    uniform float uBlockerShapeMode[${MAX_BLOCKERS}];
+    uniform float uBlockerHeightCells[${MAX_BLOCKERS}];
+    uniform float uBlockerStrength[${MAX_BLOCKERS}];
+    uniform float uHeightEncodeScale;
+
+    void main(void) {
+      // Each pixel in this pass represents one room-space pixel.
+      // We write blocker attributes into channels so later stages can sample them.
+      vec2 pixel = gl_FragCoord.xy;
+
+      // We choose the tallest blocker footprint touching this pixel.
+      // Height goes into R, strength goes into G.
+      float maxHeightCells = 0.0;
+      float maxStrength = 0.0;
+
+      for (int i = 0; i < ${MAX_BLOCKERS}; i++) {
+        if (float(i) < uBlockerCount) {
+          vec2 blockerPos = uBlockerPosPx[i];
+          // Convert from pixel space to cell space so blocker diameter is
+          // stable across different cell pixel sizes.
+          vec2 deltaCells = abs((pixel - blockerPos) / max(uCellSizePx, 0.0001));
+          float halfSize = uBlockerHalfSizeCells[i];
+
+          // Two footprint tests; select one based on per-blocker shape mode.
+          bool squareInside = (deltaCells.x <= halfSize && deltaCells.y <= halfSize);
+          vec2 signedDeltaCells = (pixel - blockerPos) / max(uCellSizePx, 0.0001);
+          bool circleInside = (length(signedDeltaCells) <= halfSize);
+          bool isCircle = uBlockerShapeMode[i] > 0.5;
+          bool inside = isCircle ? circleInside : squareInside;
+
+          // If multiple blockers overlap, keep the tallest one so the
+          // light-stage height test is conservative and predictable.
+          if (inside) {
+            float h = uBlockerHeightCells[i];
+            if (h >= maxHeightCells) {
+              maxHeightCells = h;
+              maxStrength = uBlockerStrength[i];
+            }
+          }
+        }
+      }
+
+      // Height is normalized into 0..1 for texture storage.
+      // R: encoded height, G: shadow strength, B unused, A constant 1.
+      float encodedHeight = clamp(maxHeightCells / max(uHeightEncodeScale, 0.0001), 0.0, 1.0);
+      gl_FragColor = vec4(encodedHeight, clamp(maxStrength, 0.0, 1.0), 0.0, 1.0);
+    }
+  `;
+
+  const filter = new PIXI.Filter(undefined, fragment, {
+    uImageSize: [W, H],
+    uCellSizePx: +cellSize.value,
+    uBlockerCount: 0,
+    uBlockerPosPx: blockerPositions,
+    uBlockerHalfSizeCells: blockerHalfSizesCells,
+    uBlockerShapeMode: blockerShapeModes,
+    uBlockerHeightCells: blockerHeightsCells,
+    uBlockerStrength: blockerStrengths,
+    uHeightEncodeScale: 16
+  });
+  filter.autoFit = false;
+  filter.padding = 0;
+  return filter;
+}
+
+function createLightPassFilter() {
+  const fragment = `
+    precision mediump float;
+
+    uniform vec2 uImageSize;
+    uniform float uAmbient;
+    uniform float uRadiusPx;
+    uniform float uIntensity;
+    uniform float uLightCount;
+    uniform vec2 uLightPosPx[${MAX_LIGHTS}];
+    uniform float uLightIntensity[${MAX_LIGHTS}];
+    uniform vec3 uLightInnerColor[${MAX_LIGHTS}];
+    uniform vec3 uLightOuterColor[${MAX_LIGHTS}];
+    uniform float uLightGradientExp[${MAX_LIGHTS}];
+    uniform vec2 uLightDir[${MAX_LIGHTS}];
+    uniform float uLightConeDeg[${MAX_LIGHTS}];
+    // [GLOBAL] Grid conversion and shared light elevation model.
+    uniform float uCellSizePx;
+    uniform float uLightHeightCells[${MAX_LIGHTS}];
+    uniform sampler2D uOcclusionMap;
+    uniform float uHeightEncodeScale;
+
+    // Returns how strongly this light ray is shadowed at pixelPos.
+    // 0.0 = fully visible, 1.0 = fully blocked.
+    float rayShadowAmountByMap(vec2 lightPos, vec2 pixelPos, float lightHeightCells) {
+      vec2 ray = pixelPos - lightPos;
+      float rayLen = length(ray);
+      if (rayLen <= 0.0001) return 0.0;
+
+      // March fixed steps from light toward shaded pixel.
+      // Each step samples occlusion texture for blocker height/strength.
+      vec2 dir = ray / rayLen;
+      const int STEPS = 32;
+      float strongestShadow = 0.0;
+      for (int s = 1; s <= STEPS; s++) {
+        float tRay = float(s) / float(STEPS);
+        vec2 samplePos = lightPos + dir * (rayLen * tRay);
+
+        // Convert to UV for texture lookup in occlusion map.
+        vec2 uv = clamp(samplePos / uImageSize, 0.0, 1.0);
+        vec4 occ = texture2D(uOcclusionMap, uv);
+
+        // Decode packed channels from occlusion pass.
+        float blockerHeightCells = occ.r * uHeightEncodeScale;
+        float blockerStrength = occ.g;
+
+      // Height model: this light starts at its own elevation and linearly
+      // approaches 0 at the shaded pixel.
+      float rayHeightAtSample = lightHeightCells * (1.0 - tRay);
+
+        // If blocker is tall enough at this step, it contributes shadow.
+        // Keep max strength so strongest overlap wins.
+        if (blockerHeightCells >= rayHeightAtSample && blockerHeightCells > 0.0) {
+          strongestShadow = max(strongestShadow, blockerStrength);
+        }
+      }
+      return strongestShadow;
+    }
+
+    // Artistic radial profile for point lights.
+    // t is normalized distance from center where 1.0 is radius edge.
+    float profile(float t) {
+      if (t >= 1.0) return 0.0;
+      if (t < 0.30) return mix(1.0, 0.65, t / 0.30);
+      if (t < 0.65) return mix(0.65, 0.25, (t - 0.30) / 0.35);
+      return mix(0.25, 0.0, (t - 0.65) / 0.35);
+    }
+
+    // Directional cone mask for one light at one shaded pixel.
+    // Returns 1.0 when pixel is inside the light cone, else 0.0.
+    float coneFactor(vec2 lightForward, float coneAngleDeg, vec2 toPixelDir) {
+      // 360 is omnidirectional: skip all cone math.
+      if (coneAngleDeg >= 359.5) return 1.0;
+
+      // Dot product between two unit vectors gives cos(theta).
+      // theta is angle between light forward axis and pixel direction.
+      float cosTheta = dot(normalize(lightForward), normalize(toPixelDir));
+
+      // Pixel is inside cone when theta <= halfCone.
+      // Using cosine avoids expensive acos.
+      float halfConeRad = radians(coneAngleDeg * 0.5);
+      float coneThreshold = cos(halfConeRad);
+      return cosTheta >= coneThreshold ? 1.0 : 0.0;
+    }
+
+    void main(void) {
+      // Use framebuffer pixel coordinates so distance stays isotropic.
+      // Keep native render-target orientation for direct texture preview.
+      vec2 pixel = gl_FragCoord.xy;
+
+      // Start from ambient (base room light), then add each point light.
+      vec3 illumination = vec3(uAmbient);
+
+      for (int i = 0; i < ${MAX_LIGHTS}; i++) {
+        if (float(i) < uLightCount) {
+          vec2 lightPos = uLightPosPx[i];
+          vec2 delta = pixel - lightPos;
+          float d = length(delta);
+          float t = d / max(uRadiusPx, 0.0001);
+
+          // Directional broadcast mask:
+          // - Converts omni point lights into spotlights when cone < 360.
+          // - toPixelDir is light-to-pixel direction used by coneFactor().
+          vec2 toPixelDir = d > 0.0001 ? (delta / d) : vec2(1.0, 0.0);
+          float directionalMask = coneFactor(uLightDir[i], uLightConeDeg[i], toPixelDir);
+
+          // Shadow comes from occlusion pass. Convert to visibility.
+          float shadowAmount = rayShadowAmountByMap(lightPos, pixel, uLightHeightCells[i]);
+          float visibility = 1.0 - clamp(shadowAmount, 0.0, 1.0);
+
+          // Radial two-color gradient:
+          // - t=0 uses inner/core color.
+          // - t=1 uses outer/edge color.
+          // Exponent shaping:
+          // - exponent = 1.0: linear blend.
+          // - exponent > 1.0: preserve core color longer, faster edge transition.
+          // - exponent < 1.0: transition to outer color earlier.
+          float radialGradientT = pow(clamp(t, 0.0, 1.0), max(uLightGradientExp[i], 0.0001));
+          vec3 lightGradientColor = mix(uLightInnerColor[i], uLightOuterColor[i], radialGradientT);
+
+          // Final per-light contribution:
+          // intensity * radial profile * directional mask * visibility,
+          // tinted by the radial inner->outer gradient color.
+          float animatedIntensity = uIntensity * uLightIntensity[i];
+          illumination += lightGradientColor * (animatedIntensity * profile(t) * directionalMask * visibility);
+        }
+      }
+
+      // Keep values in displayable range for this MVP pipeline.
+      gl_FragColor = vec4(clamp(illumination, 0.0, 1.0), 1.0);
+    }
+  `;
+
+  return new PIXI.Filter(undefined, fragment, {
+    uImageSize: [W, H],
+    uAmbient: +ambient.value,
+    uRadiusPx: +radius.value,
+    uIntensity: +intensity.value,
+    uLightCount: 0,
+    uLightPosPx: lightPositions,
+    uLightIntensity: lightIntensities,
+    uLightInnerColor: lightInnerColors,
+    uLightOuterColor: lightOuterColors,
+    uLightGradientExp: lightGradientExponents,
+    uLightDir: lightDirections,
+    uLightConeDeg: lightConeAnglesDeg,
+    uCellSizePx: +cellSize.value,
+    uLightHeightCells: lightHeightCells,
+    uOcclusionMap: occlusionSoftTexture,
+    uHeightEncodeScale: 16
+  });
+}
+
+function createComposeFilter() {
+  const fragment = `
+    precision mediump float;
+
+    varying vec2 vTextureCoord;
+
+    uniform sampler2D uSampler;
+    uniform sampler2D uLightMap;
+    uniform vec2 uImageSize;
+
+    void main(void) {
+      // Compose stage: multiply scene color by computed illumination.
+      vec4 scene = texture2D(uSampler, vTextureCoord);
+      vec2 lightUv = gl_FragCoord.xy / uImageSize;
+      vec3 illumination = texture2D(uLightMap, clamp(lightUv, 0.0, 1.0)).rgb;
+      gl_FragColor = vec4(scene.rgb * illumination, scene.a);
+    }
+  `;
+
+  const filter = new PIXI.Filter(undefined, fragment, {
+    uLightMap: lightMapTexture,
+    uImageSize: [W, H]
+  });
+  filter.autoFit = false;
+  filter.padding = 0;
+  return filter;
+}
+
+function createPreviewFilter() {
+  const fragment = `
+    precision mediump float;
+
+    varying vec2 vTextureCoord;
+
+    uniform sampler2D uLightMap;
+    uniform vec2 uImageSize;
+
+    void main(void) {
+      vec2 lightUv = gl_FragCoord.xy / uImageSize;
+      vec3 illumination = texture2D(uLightMap, clamp(lightUv, 0.0, 1.0)).rgb;
+      gl_FragColor = vec4(illumination, 1.0);
+    }
+  `;
+
+  const filter = new PIXI.Filter(undefined, fragment, {
+    uLightMap: lightMapTexture,
+    uImageSize: [W, H]
+  });
+  filter.autoFit = false;
+  filter.padding = 0;
+  return filter;
+}
+
+function fitImage() {
+  if (!sceneSprite) return;
+
+  const margin = 20;
+  const scale = Math.min(
+    (app.screen.width-margin*2)/W,
+    (app.screen.height-margin*2)/H,
+    1
+  );
+
+  sceneSprite.scale.set(scale);
+  sceneSprite.x = (app.screen.width-W*scale)/2;
+  sceneSprite.y = (app.screen.height-H*scale)/2;
+
+  if (lightOverlaySprite) {
+    lightOverlaySprite.scale.set(scale);
+    lightOverlaySprite.x = sceneSprite.x;
+    lightOverlaySprite.y = sceneSprite.y;
+  }
+
+  if (blockerOverlay) {
+    blockerOverlay.scale.set(scale);
+    blockerOverlay.x = sceneSprite.x;
+    blockerOverlay.y = sceneSprite.y;
+  }
+}
+
+function updateStatus() {
+  const previewName = previewMode.value === 'occlusion'
+    ? 'Occlusion stage'
+    : previewMode.value === 'shader'
+      ? 'Shader sampled'
+      : 'Direct texture';
+  const modeName = composeMode.value === 'formal-shader'
+    ? 'Formal shader compose'
+    : 'Debug multiply overlay';
+  const toolName = activeTabId === 'tabBlockers'
+    ? 'Blocker placement'
+    : activeTabId === 'tabPipeline'
+      ? 'Placement disabled (Pipeline tab)'
+      : 'Light placement';
+  const animatedCount = lights.reduce(function(count, light) {
+    return count + ((light.motionMode && light.motionMode !== 'static') ? 1 : 0);
+  }, 0);
+  const clipped = lights.length > MAX_LIGHTS ? ` (showing first ${MAX_LIGHTS})` : '';
+  const blockerClipped = blockers.length > MAX_BLOCKERS ? ` (showing first ${MAX_BLOCKERS})` : '';
+  const soften = (+shadowSoften.value).toFixed(1);
+  document.getElementById('status').innerHTML =
+    `Image: ${W} × ${H}<br>` +
+    `Point lights: ${lights.length}${clipped}<br>` +
+    `Animated lights: ${animatedCount}<br>` +
+    `Blockers: ${blockers.length}${blockerClipped}<br>` +
+    `Tool: ${toolName}<br>` +
+    `Shadow soften: ${soften}<br>` +
+    `Preview: ${previewName}<br>` +
+    `Passes: Occlusion → Occlusion blur → GPU light-map pass → ${modeName}`;
+}
+
+function setupSceneFromImage(img) {
+  W = img.naturalWidth;
+  H = img.naturalHeight;
+
+  if (sceneSprite) {
+    app.stage.removeChild(sceneSprite);
+    sceneSprite.destroy();
+  }
+  if (lightOverlaySprite) {
+    app.stage.removeChild(lightOverlaySprite);
+    lightOverlaySprite.destroy();
+    lightOverlaySprite = null;
+  }
+  if (blockerOverlay) {
+    app.stage.removeChild(blockerOverlay);
+    blockerOverlay.destroy();
+    blockerOverlay = null;
+  }
+  if (sceneTexture) sceneTexture.destroy(true);
+  if (occlusionTexture) occlusionTexture.destroy(true);
+  if (occlusionSoftTexture) occlusionSoftTexture.destroy(true);
+  if (lightMapTexture) lightMapTexture.destroy(true);
+  if (composedTexture) composedTexture.destroy(true);
+  if (previewTexture) previewTexture.destroy(true);
+  occlusionPassFilter = null;
+  occlusionBlurFilter = null;
+  composeFilter = null;
+  previewFilter = null;
+  occlusionPassContainer = null;
+  occlusionPassSprite = null;
+  occlusionBlurContainer = null;
+  occlusionBlurSprite = null;
+  composePassContainer = null;
+  composePassSprite = null;
+  previewPassContainer = null;
+  previewPassSprite = null;
+
+  lights = [];
+  blockers = [];
+
+  sceneTexture = PIXI.Texture.from(img);
+  occlusionTexture = PIXI.RenderTexture.create({
+    width: W,
+    height: H,
+    resolution: 1
+  });
+  occlusionSoftTexture = PIXI.RenderTexture.create({
+    width: W,
+    height: H,
+    resolution: 1
+  });
+  lightMapTexture = PIXI.RenderTexture.create({
+    width: W,
+    height: H,
+    resolution: 1
+  });
+  composedTexture = PIXI.RenderTexture.create({
+    width: W,
+    height: H,
+    resolution: 1
+  });
+  previewTexture = PIXI.RenderTexture.create({
+    width: W,
+    height: H,
+    resolution: 1
+  });
+
+  occlusionPassFilter = createOcclusionPassFilter();
+  occlusionPassSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+  occlusionPassSprite.width = W;
+  occlusionPassSprite.height = H;
+  occlusionPassSprite.filters = [occlusionPassFilter];
+  occlusionPassSprite.filterArea = new PIXI.Rectangle(0, 0, W, H);
+  occlusionPassContainer = new PIXI.Container();
+  occlusionPassContainer.addChild(occlusionPassSprite);
+
+  occlusionBlurFilter = new PIXI.BlurFilter(+shadowSoften.value, 1, 1, 5);
+  occlusionBlurFilter.repeatEdgePixels = true;
+  occlusionBlurSprite = new PIXI.Sprite(occlusionTexture);
+  occlusionBlurSprite.width = W;
+  occlusionBlurSprite.height = H;
+  occlusionBlurSprite.filters = [occlusionBlurFilter];
+  occlusionBlurSprite.filterArea = new PIXI.Rectangle(0, 0, W, H);
+  occlusionBlurContainer = new PIXI.Container();
+  occlusionBlurContainer.addChild(occlusionBlurSprite);
+
+  lightPassFilter = createLightPassFilter();
+  // Lock the filter to exact pass bounds so gl_FragCoord maps 1:1 to room pixels.
+  lightPassFilter.autoFit = false;
+  lightPassFilter.padding = 0;
+  lightPassSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+  lightPassSprite.width = W;
+  lightPassSprite.height = H;
+  lightPassSprite.filters = [lightPassFilter];
+  lightPassSprite.filterArea = new PIXI.Rectangle(0, 0, W, H);
+
+  lightPassContainer = new PIXI.Container();
+  lightPassContainer.addChild(lightPassSprite);
+  composeFilter = createComposeFilter();
+  previewFilter = createPreviewFilter();
+
+  composePassSprite = new PIXI.Sprite(sceneTexture);
+  composePassSprite.width = W;
+  composePassSprite.height = H;
+  composePassSprite.filters = [composeFilter];
+  composePassSprite.filterArea = new PIXI.Rectangle(0, 0, W, H);
+  composePassContainer = new PIXI.Container();
+  composePassContainer.addChild(composePassSprite);
+
+  previewPassSprite = new PIXI.Sprite(PIXI.Texture.WHITE);
+  previewPassSprite.width = W;
+  previewPassSprite.height = H;
+  previewPassSprite.filters = [previewFilter];
+  previewPassSprite.filterArea = new PIXI.Rectangle(0, 0, W, H);
+  previewPassContainer = new PIXI.Container();
+  previewPassContainer.addChild(previewPassSprite);
+
+  sceneSprite = new PIXI.Sprite(sceneTexture);
+  sceneSprite.eventMode = 'static';
+  sceneSprite.cursor = 'crosshair';
+  // Explicitly enable interaction on the sprite. pointerdown is used
+  // instead of pointertap so the harness reacts immediately to a mouse click.
+  sceneSprite.interactive = true;
+
+  lightOverlaySprite = new PIXI.Sprite(lightMapTexture);
+  lightOverlaySprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+  lightOverlaySprite.eventMode = 'none';
+  lightOverlaySprite.interactive = false;
+
+  blockerOverlay = new PIXI.Graphics();
+  blockerOverlay.eventMode = 'none';
+  blockerOverlay.interactive = false;
+  blockerOverlay.visible = true;
+
+  applyDisplayMode();
+
+  sceneSprite.on('pointerdown', function(event) {
+    const local = sceneSprite.toLocal(event.global);
+
+    if (local.x >= 0 && local.x <= W && local.y >= 0 && local.y <= H) {
+      if (activeTabId === 'tabPipeline') {
+        return;
+      }
+
+      if (activeTabId === 'tabBlockers') {
+        const cellPx = +cellSize.value;
+        const cellX = Math.floor(local.x / cellPx);
+        const cellY = Math.floor(local.y / cellPx);
+        upsertBlocker(
+          cellX,
+          cellY,
+          +blockerSize.value,
+          blockerShape.value,
+          +blockerHeight.value,
+          +blockerStrength.value
+        );
+        rebuildBlockerOverlay();
+      } else {
+        lights.push(normalizePointLightInput({
+          x: local.x,
+          y: local.y,
+          gradientExponent: +lightGradientExponent.value,
+          flickerStyle: flickerStyle.value,
+          directionDeg: +lightDirection.value,
+          coneAngleDeg: +lightConeAngle.value,
+          motionMode: lightMotionMode.value,
+          phase: Math.random() * Math.PI * 2
+        }));
+      }
+      submitHarnessFrame();
+    }
+  });
+
+  app.stage.addChild(sceneSprite);
+  app.stage.addChild(lightOverlaySprite);
+  app.stage.addChild(blockerOverlay);
+
+  fitImage();
+  syncPlacementModeUi();
+  rebuildBlockerOverlay();
+  submitHarnessFrame();
+}
+
+function loadImage(fileObject) {
+  const reader = new FileReader();
+
+  reader.onload = function() {
+    const img = new Image();
+
+    img.onload = function() {
+      setupSceneFromImage(img);
+    };
+
+    img.onerror = function() {
+      document.getElementById('status').textContent =
+        'The browser could not decode that image.';
+    };
+
+    img.src = reader.result;
+  };
+
+  reader.onerror = function() {
+    document.getElementById('status').textContent =
+      'Could not read the selected file.';
+  };
+
+  reader.readAsDataURL(fileObject);
+}
+
+const topDownLightingPipelineComponent = new TopDownLightingPipelineComponent();
+// Expose prototype API in devtools for easy engine-side experimentation.
+window.topDownLightingPipelineComponent = topDownLightingPipelineComponent;
+
+// Demo/test-harness bridge that routes updates through the component API.
+// This is the boundary payload shape game-engine code should emulate.
+// Keeping all updates funneled through submitFrame prevents side-channel drift
+// between harness behavior and eventual engine integration behavior.
+function submitHarnessFrame() {
+  topDownLightingPipelineComponent.submitFrame({
+    roomGlobals: {
+      ambient: +ambient.value,
+      radiusPx: +radius.value,
+      intensity: +intensity.value,
+      lightColorHex: color.value,
+      lightOuterColorHex: colorOuter.value,
+      lightGradientExponent: +lightGradientExponent.value,
+      flickerStyle: flickerStyle.value,
+      lightHeightCells: +lightHeight.value,
+      cellSizePx: +cellSize.value,
+      shadowSoften: +shadowSoften.value
+    },
+    pointLights: lights,
+    blockers: blockers
+  });
+}
+
+file.addEventListener('change', function() {
+  if (file.files && file.files[0]) loadImage(file.files[0]);
+});
+
+previewLightMap.addEventListener('change', applyDisplayMode);
+previewMode.addEventListener('change', function() {
+  applyDisplayMode();
+  updateStatus();
+});
+composeMode.addEventListener('change', function() {
+  applyDisplayMode();
+  updateStatus();
+});
+
+ambient.addEventListener('input', function() {
+  updateLabels(); submitHarnessFrame();
+});
+radius.addEventListener('input', function() {
+  updateLabels(); submitHarnessFrame();
+});
+intensity.addEventListener('input', function() {
+  updateLabels(); submitHarnessFrame();
+});
+lightDirection.addEventListener('input', updateLabels);
+lightConeAngle.addEventListener('input', updateLabels);
+color.addEventListener('input', submitHarnessFrame);
+colorOuter.addEventListener('input', submitHarnessFrame);
+lightGradientExponent.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+cellSize.addEventListener('input', function() {
+  updateLabels();
+  rebuildBlockerOverlay();
+  submitHarnessFrame();
+});
+blockerSize.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+blockerHeight.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+blockerStrength.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+lightHeight.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+shadowSoften.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+lightMotionMode.addEventListener('change', updateStatus);
+swayAmount.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+swaySpeed.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+swayDirection.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+flickerAmount.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+flickerSpeed.addEventListener('input', function() {
+  updateLabels();
+  submitHarnessFrame();
+});
+flickerStyle.addEventListener('change', function() {
+  submitHarnessFrame();
+});
+
+document.getElementById('clear').addEventListener('click', function() {
+  lights = [];
+  submitHarnessFrame();
+});
+
+document.getElementById('clearBlockers').addEventListener('click', function() {
+  blockers = [];
+  rebuildBlockerOverlay();
+  submitHarnessFrame();
+});
+
+window.addEventListener('resize', fitImage);
+
+// Rebuild only when needed so static scenes do not do unnecessary work.
+app.ticker.add(function() {
+  if (!sceneSprite) return;
+  if (!hasAnimatedLights()) return;
+  submitHarnessFrame();
+});
+
+updateLabels();
+</script>
+</body>
+</html>
