@@ -1,0 +1,15 @@
+# Dependencies
+TopDown/node_modules/
+
+# Local editor settings
+TopDown/.vscode/
+
+# Logs and local environment files
+*.log
+.env
+.env.*
+!.env.example
+
+# OS metadata
+.DS_Store
+Thumbs.db
