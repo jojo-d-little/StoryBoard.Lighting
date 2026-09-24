@@ -162,6 +162,7 @@ Choose an image above. Then click the image to place point lights.
 
 <script type="module">
 import { TopDownLightingPipelineComponent } from './dist/TopDownLightingPipelineComponent.js';
+import { getBlockerBoundsPx } from './dist/src/lighting/LightingCore.js';
 
 const stageFrame = document.getElementById('stageFrame');
 const app = new PIXI.Application({
@@ -467,12 +468,9 @@ tabButtons.forEach(function(btn) {
   });
 });
 
-function pxFromCellCenter(cellIndex, cellPx) {
-  return (cellIndex + 0.5) * cellPx;
-}
-
 function upsertBlocker(cellX, cellY, sizeCells, shape, heightCells, strength) {
-  // [CELL] Keep authored footprint snapped to quarter-cell increments.
+  // [CELL] cellX/cellY are the top-left occupied room cell.
+  // Keep authored footprint snapped to quarter-cell increments.
   const snappedSize = Math.max(0.25, Math.min(2.0, Math.round(sizeCells * 4.0) / 4.0));
   const shapeMode = shape === 'circle' ? 1 : 0;
   const index = blockers.findIndex(function(b) {
@@ -502,15 +500,14 @@ function rebuildBlockerOverlay() {
   const cellPx = +cellSize.value;
   for (let i = 0; i < blockers.length; i++) {
     const b = blockers[i];
-    const centerX = pxFromCellCenter(b.cellX, cellPx);
-    const centerY = pxFromCellCenter(b.cellY, cellPx);
-    const sidePx = Math.max(1, b.sizeCells * cellPx);
+    const bounds = getBlockerBoundsPx(b, cellPx);
+    const sidePx = Math.max(1, bounds.widthPx);
     if (b.shapeMode === 1) {
-      blockerOverlay.drawCircle(centerX, centerY, sidePx * 0.5);
+      blockerOverlay.drawCircle(bounds.centerPxX, bounds.centerPxY, sidePx * 0.5);
     } else {
       blockerOverlay.drawRect(
-        centerX - sidePx * 0.5,
-        centerY - sidePx * 0.5,
+        bounds.leftPx,
+        bounds.topPx,
         sidePx,
         sidePx
       );
@@ -648,8 +645,9 @@ function rebuildLightingMap() {
     const b = blockers[i];
     // Keep authored values stable and deterministic before feeding GPU state.
     const diameterCells = Math.max(0.25, Math.min(2.0, Math.round(b.sizeCells * 4.0) / 4.0));
-    blockerPositions[i * 2] = pxFromCellCenter(b.cellX, cellPx);
-    blockerPositions[i * 2 + 1] = pxFromCellCenter(b.cellY, cellPx);
+    const bounds = getBlockerBoundsPx(b, cellPx);
+    blockerPositions[i * 2] = bounds.centerPxX;
+    blockerPositions[i * 2 + 1] = bounds.centerPxY;
     // [CELL] Blocker footprint and height are content-facing per-cell properties.
     blockerHalfSizesCells[i] = Math.max(0.01, diameterCells * 0.5);
     blockerShapeModes[i] = b.shapeMode === 1 ? 1.0 : 0.0;

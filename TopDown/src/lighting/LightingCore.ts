@@ -52,12 +52,25 @@ export interface NormalizedPointLight {
 }
 
 export interface BlockerInput {
+  /** Integer X coordinate of the top-left occupied room cell. */
   cellX: number;
+  /** Integer Y coordinate of the top-left occupied room cell. */
   cellY: number;
+  /** Square blocker footprint width and height in cell units. */
   sizeCells?: number;
   shapeMode?: number;
   heightCells?: number;
   strength?: number;
+}
+
+/** Pixel-space bounds derived from a normalized room-cell blocker. */
+export interface BlockerBoundsPx {
+  leftPx: number;
+  topPx: number;
+  widthPx: number;
+  heightPx: number;
+  centerPxX: number;
+  centerPxY: number;
 }
 
 export interface RoomGeometryInput {
@@ -248,6 +261,30 @@ export function normalizeBlockerInput(blocker: BlockerInput | unknown): Required
     shapeMode: source.shapeMode === 1 ? 1 : 0,
     heightCells: Math.max(0, toNumberOr(source.heightCells, 0)),
     strength: clampRange(toNumberOr(source.strength, 1), 0, 1)
+  };
+}
+
+/**
+ * Converts a normalized blocker from top-left room-cell coordinates into
+ * pixel-space bounds. The same derived bounds should drive overlays and GPU
+ * blocker centers so they cannot drift apart.
+ */
+export function getBlockerBoundsPx(
+  blocker: Required<BlockerInput>,
+  cellSizePx: number
+): BlockerBoundsPx {
+  const safeCellSizePx = Math.max(1, toNumberOr(cellSizePx, 1));
+  const leftPx = blocker.cellX * safeCellSizePx;
+  const topPx = blocker.cellY * safeCellSizePx;
+  const widthPx = blocker.sizeCells * safeCellSizePx;
+  const heightPx = blocker.sizeCells * safeCellSizePx;
+  return {
+    leftPx,
+    topPx,
+    widthPx,
+    heightPx,
+    centerPxX: leftPx + widthPx * 0.5,
+    centerPxY: topPx + heightPx * 0.5
   };
 }
 

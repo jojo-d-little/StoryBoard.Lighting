@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluatePointLight,
+  getBlockerBoundsPx,
   normalizeBlockerInput,
   normalizeLightColor01,
   normalizePointLightDefaultsInput,
@@ -66,6 +67,19 @@ describe("lighting core normalization", () => {
       shapeMode: 1,
       heightCells: 0,
       strength: 1
+    });
+  });
+
+  it("derives blocker pixel bounds from the top-left occupied cell", () => {
+    const blocker = normalizeBlockerInput({ cellX: 3, cellY: 4, sizeCells: 2 });
+
+    expect(getBlockerBoundsPx(blocker, 40)).toEqual({
+      leftPx: 120,
+      topPx: 160,
+      widthPx: 80,
+      heightPx: 80,
+      centerPxX: 160,
+      centerPxY: 200
     });
   });
 

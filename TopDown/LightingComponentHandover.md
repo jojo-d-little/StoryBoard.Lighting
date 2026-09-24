@@ -73,8 +73,8 @@ and call:
 
 ### Blockers
 
-- `cellX`, `cellY`: integer grid coordinates
-- `sizeCells`: footprint diameter in cell units
+- `cellX`, `cellY`: integer room-cell coordinates for the blocker’s top-left occupied cell
+- `sizeCells`: square footprint width and height in cell units
 - `heightCells`: blocker height in cell units
 - `strength`: [0, 1]
 
@@ -84,7 +84,7 @@ and call:
 - `radiusPx`: light radius in pixels
 - `intensity`: scalar
 - `lightHeightCells`: light height in cell units
-- `cellSizePx`: pixels per grid cell
+- `cellSizePx`: pixels per grid cell; room cell `(0, 0)` begins at room-image pixel `(0, 0)`
 - `shadowSoften`: [0, 4]
 
 Point-light animation defaults are supplied separately through

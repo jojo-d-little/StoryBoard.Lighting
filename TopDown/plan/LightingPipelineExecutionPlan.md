@@ -67,6 +67,9 @@ the lifecycle API before moving implementation into new modules.
 - Omitted per-light values use point-light or room-light defaults as documented.
 - Harness controls can edit the selected light live without changing other lights.
 - With no light selected, controls change only the next-light template.
+- Blocker clicks snap to the containing room cell, and blocker cell coordinates
+  represent the top-left occupied cell.
+- Blocker overlays and GPU blocker centers derive from the same room-cell bounds.
 
 ### Stop gate B — behavior approval
 
