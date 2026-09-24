@@ -29,8 +29,10 @@ function normalizePointLightInput(light) {
         // Colors are accepted as flexible payloads and interpreted later.
         color: source.color,
         outerColor: source.outerColor,
-        // Gradient exponent must remain positive for pow() safety in shader math.
-        gradientExponent: Math.max(0.01, toNumberOr(source.gradientExponent, 1)),
+        // Preserve omission so the renderer can apply the room lighting default.
+        gradientExponent: source.gradientExponent == null
+            ? undefined
+            : Math.max(0.01, toNumberOr(source.gradientExponent, 1)),
         // Per-light intensity scale is non-negative and multiplies room intensity.
         intensityScale: Math.max(0, toNumberOr(source.intensityScale, 1)),
         // Preserve omission so the renderer can apply the room-level fallback.
@@ -44,7 +46,8 @@ function normalizePointLightInput(light) {
         flickerAmount: source.flickerAmount == null ? undefined : clampRange(toNumberOr(source.flickerAmount, 0), 0, 1),
         flickerHz: source.flickerHz == null ? undefined : toNumberOr(source.flickerHz, 0),
         flickerSpeedHz: source.flickerSpeedHz == null ? undefined : toNumberOr(source.flickerSpeedHz, 0),
-        flickerStyle: normalizeFlickerStyle(source.flickerStyle)
+        // Preserve omission so the renderer can apply the point-light default.
+        flickerStyle: source.flickerStyle == null ? undefined : normalizeFlickerStyle(source.flickerStyle)
     };
 }
 function normalizeBlockerInput(blocker) {
@@ -59,10 +62,10 @@ function normalizeBlockerInput(blocker) {
         strength: clampRange(toNumberOr(source.strength, 1), 0, 1)
     };
 }
-function normalizeRoomGlobalsInput(config) {
+function normalizeRoomLightingInput(config) {
     const source = (config ?? {});
     const out = {};
-    // Room globals clamp against UI/harness bounds to keep behavior stable in
+    // Room lighting values clamp against UI/harness bounds to keep behavior stable in
     // both test payloads and future engine-driven payloads.
     if (source.ambient != null)
         out.ambient = clampRange(toNumberOr(source.ambient, +ambient.value), 0, 1);
@@ -79,10 +82,30 @@ function normalizeRoomGlobalsInput(config) {
     if (source.lightGradientExponent != null) {
         out.lightGradientExponent = Math.max(0.01, toNumberOr(source.lightGradientExponent, +lightGradientExponent.value));
     }
-    if (source.flickerStyle != null)
-        out.flickerStyle = normalizeFlickerStyle(source.flickerStyle);
     if (source.lightHeightCells != null)
         out.lightHeightCells = Math.max(0.25, toNumberOr(source.lightHeightCells, +lightHeight.value));
+    return out;
+}
+function normalizePointLightDefaultsInput(config) {
+    const source = (config ?? {});
+    const out = {};
+    if (source.swayAmountPx != null)
+        out.swayAmountPx = Math.max(0, toNumberOr(source.swayAmountPx, +swayAmount.value));
+    if (source.swayHz != null)
+        out.swayHz = Math.max(0, toNumberOr(source.swayHz, +swaySpeed.value));
+    if (source.swayDirectionDeg != null)
+        out.swayDirectionDeg = toNumberOr(source.swayDirectionDeg, +swayDirection.value);
+    if (source.flickerAmount != null)
+        out.flickerAmount = clampRange(toNumberOr(source.flickerAmount, +flickerAmount.value), 0, 1);
+    if (source.flickerHz != null)
+        out.flickerHz = Math.max(0, toNumberOr(source.flickerHz, +flickerSpeed.value));
+    if (source.flickerStyle != null)
+        out.flickerStyle = normalizeFlickerStyle(source.flickerStyle);
+    return out;
+}
+function normalizeLightingPipelineInput(config) {
+    const source = (config ?? {});
+    const out = {};
     if (source.cellSizePx != null)
         out.cellSizePx = Math.max(1, toNumberOr(source.cellSizePx, +cellSize.value));
     if (source.shadowSoften != null)
@@ -93,7 +116,9 @@ function normalizeFrameInput(input) {
     const source = (input ?? {});
     return {
         // Frame payload is normalized field-by-field so partial updates are safe.
-        roomGlobals: normalizeRoomGlobalsInput(source.roomGlobals),
+        roomLighting: normalizeRoomLightingInput(source.roomLighting),
+        pointLightDefaults: normalizePointLightDefaultsInput(source.pointLightDefaults),
+        pipeline: normalizeLightingPipelineInput(source.pipeline),
         pointLights: Array.isArray(source.pointLights) ? source.pointLights.map(normalizePointLightInput) : [],
         blockers: Array.isArray(source.blockers) ? source.blockers.map(normalizeBlockerInput) : []
     };
@@ -110,15 +135,24 @@ class TopDownLightingPipelineComponent {
                 pointLights: 'PointLightInput[]',
                 blockers: 'BlockerInput[]'
             },
-            optionalRoomGlobals: {
+            optionalRoomLighting: {
                 ambient: '0..1',
                 radiusPx: 'number',
                 intensity: 'number',
                 lightColorHex: '#rrggbb',
                 lightOuterColorHex: '#rrggbb',
                 lightGradientExponent: 'number (>0)',
-                flickerStyle: 'swell | flame',
-                lightHeightCells: 'number',
+                lightHeightCells: 'number'
+            },
+            optionalPointLightDefaults: {
+                swayAmountPx: 'number',
+                swayHz: 'number',
+                swayDirectionDeg: 'number',
+                flickerAmount: '0..1',
+                flickerHz: 'number',
+                flickerStyle: 'swell | flame'
+            },
+            optionalPipeline: {
                 cellSizePx: 'number',
                 shadowSoften: '0..4'
             },
@@ -130,9 +164,11 @@ class TopDownLightingPipelineComponent {
             },
             typeAliases: {
                 PointLightInput: 'TS interface',
-                PointLightState: 'Normalized canonical shape used by runtime',
+                NormalizedPointLight: 'Normalized canonical shape used by runtime',
                 BlockerInput: 'TS interface',
-                RoomGlobalsInput: 'TS interface',
+                RoomLightingInput: 'TS interface',
+                PointLightDefaultsInput: 'TS interface',
+                LightingPipelineInput: 'TS interface',
                 LightingFrameInput: 'TS interface'
             }
         };
@@ -151,8 +187,8 @@ class TopDownLightingPipelineComponent {
         blockers = source.slice(0, MAX_BLOCKERS).map(normalizeBlockerInput);
         rebuildBlockerOverlay();
     }
-    setRoomGlobals(config) {
-        const normalized = normalizeRoomGlobalsInput(config);
+    setRoomLighting(config) {
+        const normalized = normalizeRoomLightingInput(config);
         if (normalized.ambient != null)
             ambient.value = String(normalized.ambient);
         if (normalized.radiusPx != null)
@@ -165,21 +201,40 @@ class TopDownLightingPipelineComponent {
             colorOuter.value = String(normalized.lightOuterColorHex);
         if (normalized.lightGradientExponent != null)
             lightGradientExponent.value = String(normalized.lightGradientExponent);
-        if (normalized.flickerStyle != null)
-            flickerStyle.value = normalized.flickerStyle;
         if (normalized.lightHeightCells != null)
             lightHeight.value = String(normalized.lightHeightCells);
+        updateLabels();
+    }
+    setPointLightDefaults(config) {
+        const normalized = normalizePointLightDefaultsInput(config);
+        if (normalized.swayAmountPx != null)
+            swayAmount.value = String(normalized.swayAmountPx);
+        if (normalized.swayHz != null)
+            swaySpeed.value = String(normalized.swayHz);
+        if (normalized.swayDirectionDeg != null)
+            swayDirection.value = String(normalized.swayDirectionDeg);
+        if (normalized.flickerAmount != null)
+            flickerAmount.value = String(normalized.flickerAmount);
+        if (normalized.flickerHz != null)
+            flickerSpeed.value = String(normalized.flickerHz);
+        if (normalized.flickerStyle != null)
+            flickerStyle.value = normalized.flickerStyle;
+        updateLabels();
+    }
+    setPipeline(config) {
+        const normalized = normalizeLightingPipelineInput(config);
         if (normalized.cellSizePx != null)
             cellSize.value = String(normalized.cellSizePx);
         if (normalized.shadowSoften != null)
             shadowSoften.value = String(normalized.shadowSoften);
-        // Sync UI labels because globals are mirrored to harness controls.
         updateLabels();
     }
     submitFrame(input) {
         // Single boundary handoff used by both harness and engine-style callers.
         const normalized = normalizeFrameInput(input);
-        this.setRoomGlobals(normalized.roomGlobals);
+        this.setRoomLighting(normalized.roomLighting);
+        this.setPointLightDefaults(normalized.pointLightDefaults);
+        this.setPipeline(normalized.pipeline);
         this.setPointLights(normalized.pointLights);
         this.setBlockers(normalized.blockers);
         this.renderFrame();

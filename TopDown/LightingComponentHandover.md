@@ -38,7 +38,9 @@ Commands:
 
 Per frame, provide:
 
-- `roomGlobals`
+- `roomLighting`
+- `pointLightDefaults`
+- `pipeline`
 - `pointLights`
 - `blockers`
 
@@ -74,13 +76,18 @@ and call:
 - `heightCells`: blocker height in cell units
 - `strength`: [0, 1]
 
-### Globals
+### Room lighting and pipeline
 
 - `ambient`: [0, 1]
 - `radiusPx`: light radius in pixels
 - `intensity`: scalar
 - `lightHeightCells`: light height in cell units
+- `cellSizePx`: pixels per grid cell
 - `shadowSoften`: [0, 4]
+
+Point-light animation defaults are supplied separately through
+`pointLightDefaults`. They are fallback values for lights that omit sway or
+flicker settings; they do not animate ambient room lighting.
 
 ## API Surface
 
@@ -88,9 +95,17 @@ and call:
 
 Bootstraps render targets/passes for a new room image.
 
-### `setRoomGlobals(config)`
+### `setRoomLighting(config)`
 
-Updates room/global controls (ambient, radius, color defaults, etc).
+Updates room lighting controls (ambient, radius, shared color defaults, etc).
+
+### `setPointLightDefaults(config)`
+
+Updates fallback sway and flicker settings for point lights.
+
+### `setPipeline(config)`
+
+Updates grid and pipeline settings such as cell size and shadow softening.
 
 ### `setPointLights(nextLights)`
 
@@ -117,15 +132,24 @@ Returns internal render textures:
 
 ```ts
 const frame = {
-  roomGlobals: {
+  roomLighting: {
     ambient: 0.25,
     radiusPx: 220,
     intensity: 1.6,
     lightColorHex: '#ffd9a6',
     lightOuterColorHex: '#ff7f5f',
     lightGradientExponent: 1.4,
-    flickerStyle: 'flame',
-    lightHeightCells: 2.0,
+    lightHeightCells: 2.0
+  },
+  pointLightDefaults: {
+    swayAmountPx: 18,
+    swayHz: 0.8,
+    swayDirectionDeg: 90,
+    flickerAmount: 0.35,
+    flickerHz: 7.8,
+    flickerStyle: 'flame'
+  },
+  pipeline: {
     cellSizePx: 40,
     shadowSoften: 1.3
   },

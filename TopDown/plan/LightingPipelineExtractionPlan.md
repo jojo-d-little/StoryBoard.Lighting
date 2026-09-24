@@ -14,8 +14,9 @@ const lighting = new TopDownLightingPipelineComponent({
 });
 
 lighting.setRoomTexture(roomTexture, {
-  width: roomWidth,
-  height: roomHeight
+  widthPx: roomWidth,
+  heightPx: roomHeight,
+  cellSizePx: 40
 });
 
 lighting.submitFrame(worldLightingState);
@@ -30,11 +31,133 @@ displaySprite.texture = outputs.composedTexture;
 
 The host engine remains responsible for asset loading, world-to-image/cell coordinate conversion, scene graph presentation, and the clock. The component remains responsible for lighting simulation and rendering.
 
+## WebPortal Compatibility Constraints
+
+The intended first engine consumer is the Pixi-based WebPortal renderer. A
+cursory review establishes the following compatibility requirements:
+
+- WebPortal currently uses PixiJS 8.x through Vite/ESM, so the extracted
+  package should target PixiJS 8 APIs rather than preserving the PixiJS 7-only
+  harness setup.
+- The package must accept a host-owned Pixi renderer and must not create its
+  own `Application`, canvas, ticker, or renderer lifecycle.
+- The host renderer owns asynchronous Pixi initialization, viewport resizing,
+  ticker registration, and final disposal. The lighting component should expose
+  compatible `resize`, explicit time-driven rendering, and `dispose` behavior.
+- WebPortal uses room-space pixel coordinates and applies viewport contain
+  scaling separately. Lighting render targets and room geometry must remain in
+  room space and must not be resized merely because the display viewport changes.
+- WebPortal currently composes rooms from independent sprites and does not
+  expose a dedicated room/albedo texture in its scene snapshot. The lighting
+  package must remain independent of WebPortal scene contracts while allowing a
+  future adapter to provide either a dedicated room texture or a captured
+  composed room surface.
+- WebPortal already has a Pixi container-to-texture capture pattern for room
+  snapshots. That pattern may inform a future lighting adapter, but live room
+  capture versus a dedicated albedo layer remains an integration decision.
+- The component should account for renderer texture-size limits and quality or
+  resolution scaling, consistent with WebPortal's existing bounded snapshot
+  behavior.
+- Point lights, blockers, and cell size are not currently present in the
+  WebPortal scene contract. They must arrive through a future game-state or
+  renderer adapter rather than being inferred from unrelated WebPortal UI data.
+
+These constraints should steer the package boundary without coupling the
+lighting implementation directly to WebPortal types.
+
+## Packaging and Delivery
+
+The extracted component should be delivered as an npm package. The package is
+the reusable engine-facing product; the HTML harness remains a development and
+visual-validation consumer rather than part of the runtime package.
+
+The package should contain:
+
+- The pipeline component and public TypeScript types.
+- Compiled JavaScript and `.d.ts` declarations.
+- Shader sources and rendering-pass implementation.
+- Documentation for Pixi compatibility, lifecycle, coordinate spaces, and
+  output texture ownership.
+
+The package should not contain:
+
+- HTML controls or DOM configuration.
+- Harness globals or demo-only display logic.
+- CDN script dependencies.
+- A bundled second copy of PixiJS.
+
+PixiJS should be declared as a peer dependency so the host engine controls the
+Pixi version and the application does not load multiple Pixi instances. The
+initial development package may remain private or be consumed through a local
+workspace dependency before public publishing is considered.
+
+An eventual repository layout may look like:
+
+```text
+packages/
+  lighting/
+    src/
+    dist/
+    package.json
+    tsconfig.json
+    README.md
+TopDownLightingTestHarness.html
+```
+
+The public package entry point should expose only intentional runtime APIs and
+types, for example:
+
+```ts
+import {
+  TopDownLightingPipeline,
+  type RoomGeometryInput,
+  type LightingFrameInput
+} from '@storyboard/lighting';
+```
+
+Packaging validation should include:
+
+1. Building ESM JavaScript and declaration files.
+2. Running `npm pack --dry-run` to verify package contents.
+3. Installing the packed artifact into a second programmatic Pixi harness.
+4. Confirming the consumer does not require the original HTML harness.
+5. Publishing only after the public contract and lifecycle API are stable.
+
+### Room Geometry Contract
+
+Room geometry is established together with the room texture because these values
+define the canonical internal coordinate system used by lights, blockers, and
+render targets:
+
+```ts
+interface RoomGeometryInput {
+  /** Room/image width in internal image-space pixels. */
+  widthPx: number;
+  /** Room/image height in internal image-space pixels. */
+  heightPx: number;
+  /** Grid-cell size in the same internal image-space pixels. */
+  cellSizePx: number;
+}
+```
+
+`setRoomTexture(texture, dimensions)` should receive this geometry (or an
+equivalent dimensions object) and use it to allocate room-sized render targets
+and establish cell-to-pixel conversion. These are internal room-space values,
+not display canvas dimensions; presentation scaling remains outside the
+lighting simulation.
+
+`cellSizePx` should not be treated as a generic pipeline-quality setting. It
+belongs with room geometry because it determines how grid-space blockers map
+into image-space pixels. If the room geometry changes, the component should
+revalidate dependent resources and coordinate calculations together.
+
 ## Target API Semantics
 
 ### `setRoomTexture(texture, dimensions)`
 
-Establishes the source scene/albedo texture and allocates or reallocates internal render targets for that room size.
+Establishes the source scene/albedo texture and room geometry, then allocates
+or reallocates internal render targets for that room size. `dimensions` should
+include room/image width, room/image height, and cell size.
 
 The component should document texture ownership, room replacement behavior, and whether the supplied texture may be destroyed by the component.
 
@@ -43,6 +166,8 @@ The component should document texture ownership, room replacement behavior, and 
 Accepts the authoritative lighting state for the next render:
 
 - Room/global lighting configuration
+- Room geometry and grid mapping are established through room setup, not as
+  per-frame pipeline-quality settings.
 - Point lights
 - Blockers
 
@@ -88,9 +213,10 @@ Destroys render textures, filters, pass objects, and other GPU resources owned b
 ### Step 1: Lock down and export the public contract
 
 - Export all public input, output, and options types.
+- Export the room geometry contract, including room width, room height, and cell size.
 - Define the canonical coordinate and unit contracts.
 - Define normalization bounds and default behavior.
-- Include global sway and flicker configuration in `RoomGlobalsInput` where global fallback behavior is supported.
+- Represent point-light sway and flicker configuration as explicit point-light defaults, separate from room lighting.
 - Expose capacity/configuration such as maximum light and blocker counts instead of hiding it in the HTML harness.
 
 Completion criteria:
@@ -100,7 +226,7 @@ Completion criteria:
 
 ### Step 2: Remove DOM configuration from pipeline logic
 
-- Move all UI values into `RoomGlobalsInput` or pipeline options.
+- Move room lighting values, point-light defaults, and pipeline values into explicit input groups rather than DOM-bound globals.
 - Remove reads from `ambient`, `radius`, `color`, `flickerStyle`, and other HTML controls.
 - Keep DOM-to-frame conversion inside the harness adapter.
 
@@ -239,6 +365,34 @@ Completion criteria:
 - Document output texture ownership.
 - Document render cadence for static and animated scenes.
 - Add a short integration example independent of the test harness.
+- Build a package with compiled JavaScript and declaration files.
+- Declare PixiJS as a peer dependency rather than bundling it.
+- Keep the HTML harness outside the runtime package.
+- Validate the packed artifact with a separate programmatic consumer.
+
+### Step 11: Produce WebPortal Integration Handover
+
+After the package API, renderer lifecycle, room geometry, and room-surface
+strategy are stable, produce a WebPortal-specific handover document.
+
+The handover should include:
+
+- The compatible package version and PixiJS peer-dependency requirement.
+- Installation or workspace-consumption instructions.
+- The exact construction point inside the WebPortal renderer.
+- How the host renderer is injected and how Pixi initialization timing is handled.
+- How WebPortal room bounds map to `RoomGeometryInput`.
+- How cell size, point lights, blockers, and room lighting are sourced.
+- Whether the first integration uses a dedicated albedo texture or a composed
+  room-surface capture.
+- How active/staging room surfaces and transitions interact with lighting.
+- How `submitFrame`, `renderFrame(timeSeconds)`, `resize`, and `dispose` are
+  wired into the renderer lifecycle.
+- Texture ownership, GPU limits, quality settings, and failure behavior.
+- A minimal WebPortal code example and an integration checklist.
+
+The handover is a delivery artifact for the WebPortal project, not a reason to
+make the lighting package depend on WebPortal source contracts.
 
 ## Final Definition of Done
 
@@ -253,6 +407,11 @@ The pipeline is considered truly componentized when all of the following are tru
 - Outputs are exposed through a documented ownership contract.
 - Room replacement, resizing, and disposal are explicit and safe.
 - A second programmatic Pixi harness can use it without copying test-harness logic.
+- The component can be consumed from a packed npm artifact without the original
+  HTML harness or CDN script setup.
+- A WebPortal-specific handover document provides a tested, step-by-step
+  integration path without requiring WebPortal developers to reverse-engineer
+  the prototype or its internal rendering passes.
 
 ## Expected Engine Integration Effort After Extraction
 

@@ -1255,15 +1255,24 @@ window.topDownLightingPipelineComponent = topDownLightingPipelineComponent;
 // between harness behavior and eventual engine integration behavior.
 function submitHarnessFrame() {
   topDownLightingPipelineComponent.submitFrame({
-    roomGlobals: {
+    roomLighting: {
       ambient: +ambient.value,
       radiusPx: +radius.value,
       intensity: +intensity.value,
       lightColorHex: color.value,
       lightOuterColorHex: colorOuter.value,
       lightGradientExponent: +lightGradientExponent.value,
-      flickerStyle: flickerStyle.value,
-      lightHeightCells: +lightHeight.value,
+      lightHeightCells: +lightHeight.value
+    },
+    pointLightDefaults: {
+      swayAmountPx: +swayAmount.value,
+      swayHz: +swaySpeed.value,
+      swayDirectionDeg: +swayDirection.value,
+      flickerAmount: +flickerAmount.value,
+      flickerHz: +flickerSpeed.value,
+      flickerStyle: flickerStyle.value
+    },
+    pipeline: {
       cellSizePx: +cellSize.value,
       shadowSoften: +shadowSoften.value
     },
