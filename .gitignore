@@ -1,6 +1,8 @@
 # Dependencies
 TopDown/node_modules/
 TopDown/dist/
+TopDown/packages/lighting/dist/
+*.tgz
 
 # Local editor settings
 .vscode/
