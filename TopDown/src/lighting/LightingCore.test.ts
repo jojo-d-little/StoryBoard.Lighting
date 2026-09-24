@@ -35,6 +35,7 @@ describe("lighting core normalization", () => {
     const light = normalizePointLightInput({
       x: "420",
       y: Number.NaN,
+      radiusPx: 999,
       coneAngleDeg: 500,
       intensityScale: -2,
       gradientExponent: undefined,
@@ -44,6 +45,7 @@ describe("lighting core normalization", () => {
     expect(light.x).toBe(420);
     expect(light.y).toBe(0);
     expect(light.coneAngleDeg).toBe(360);
+    expect(light.radiusPx).toBe(600);
     expect(light.intensityScale).toBe(0);
     expect(light.gradientExponent).toBeUndefined();
     expect(light.flickerStyle).toBeUndefined();
@@ -118,6 +120,7 @@ describe("lighting core animation", () => {
     expect(first.y).not.toBe(200);
     expect(first.intensity).toBeGreaterThanOrEqual(0);
     expect(first.intensity).toBeLessThanOrEqual(1.2);
+    expect(first.radiusPx).toBe(220);
     expect(first.lightHeightCells).toBe(2);
   });
 
@@ -125,6 +128,7 @@ describe("lighting core animation", () => {
     const light = normalizePointLightInput({
       x: 10,
       y: 20,
+      radiusPx: 310,
       motionMode: "static",
       color: "#0000ff",
       outerColor: { r: 255, g: 0, b: 0 },
@@ -137,6 +141,7 @@ describe("lighting core animation", () => {
 
     expect(evaluated.x).toBe(10);
     expect(evaluated.y).toBe(20);
+    expect(evaluated.radiusPx).toBe(310);
     expect(evaluated.color).toEqual([0, 0, 1]);
     expect(evaluated.outerColor).toEqual([1, 0, 0]);
     expect(evaluated.gradientExponent).toBe(2.5);

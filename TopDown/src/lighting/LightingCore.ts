@@ -6,6 +6,8 @@ export type RGB01 = readonly [number, number, number];
 export interface PointLightInput {
   x: number;
   y: number;
+  /** Optional radius override in room-image pixels. */
+  radiusPx?: number;
   directionDeg?: number;
   coneAngleDeg?: number;
   motionMode?: LightMotionMode;
@@ -28,6 +30,8 @@ export interface PointLightInput {
 export interface NormalizedPointLight {
   x: number;
   y: number;
+  /** Optional normalized radius override in room-image pixels. */
+  radiusPx?: number;
   directionDeg: number;
   coneAngleDeg: number;
   motionMode: LightMotionMode;
@@ -123,6 +127,8 @@ export interface NormalizedPointLightDefaults {
 export interface EvaluatedPointLight {
   x: number;
   y: number;
+  /** Effective radius in room-image pixels. */
+  radiusPx: number;
   directionDeg: number;
   coneAngleDeg: number;
   intensity: number;
@@ -208,6 +214,7 @@ export function normalizePointLightInput(light: PointLightInput | unknown): Norm
   return {
     x: toNumberOr(source.x, 0),
     y: toNumberOr(source.y, 0),
+    radiusPx: source.radiusPx == null ? undefined : clampRange(toNumberOr(source.radiusPx, 20), 20, 600),
     directionDeg: toNumberOr(source.directionDeg, 0),
     coneAngleDeg: clampRange(toNumberOr(source.coneAngleDeg, 360), 1, 360),
     motionMode: normalizeMotionMode(source.motionMode),
@@ -355,6 +362,7 @@ export function evaluatePointLight(
   return {
     x,
     y,
+    radiusPx: light.radiusPx ?? roomLighting.radiusPx,
     directionDeg: light.directionDeg,
     coneAngleDeg: light.coneAngleDeg,
     intensity: Math.max(0, light.intensityScale * flickerScale(light, pointLightDefaults, timeSeconds)),

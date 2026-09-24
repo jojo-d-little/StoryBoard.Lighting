@@ -59,14 +59,6 @@ function inputValue(id: string): HTMLInputElement {
   return element;
 }
 
-function selectValue(id: string): HTMLSelectElement {
-  const element = document.getElementById(id);
-  if (!(element instanceof HTMLSelectElement)) {
-    throw new Error(`Expected #${id} to be a select.`);
-  }
-  return element;
-}
-
 function normalizePipelineInput(
   config: LightingPipelineInput | undefined,
   fallback: Required<LightingPipelineInput>
@@ -170,30 +162,13 @@ export class TopDownLightingPipelineComponent {
 
   setRoomLighting(config: RoomLightingInput | undefined): void {
     this.roomLighting = normalizeRoomLightingInput(config, this.roomLighting);
-    const values: Record<string, string | number> = {
-      ambient: this.roomLighting.ambient,
-      radius: this.roomLighting.radiusPx,
-      intensity: this.roomLighting.intensity,
-      color: this.roomLighting.lightColorHex,
-      colorOuter: this.roomLighting.lightOuterColorHex,
-      lightGradientExponent: this.roomLighting.lightGradientExponent,
-      lightHeight: this.roomLighting.lightHeightCells
-    };
-    for (const [id, value] of Object.entries(values)) inputValue(id).value = String(value);
+    inputValue("ambient").value = String(this.roomLighting.ambient);
+    inputValue("roomIntensity").value = String(this.roomLighting.intensity);
     bridge().updateLabels();
   }
 
   setPointLightDefaults(config: PointLightDefaultsInput | undefined): void {
     this.pointLightDefaults = normalizePointLightDefaultsInput(config, this.pointLightDefaults);
-    const values: Record<string, string | number> = {
-      swayAmount: this.pointLightDefaults.swayAmountPx,
-      swaySpeed: this.pointLightDefaults.swayHz,
-      swayDirection: this.pointLightDefaults.swayDirectionDeg,
-      flickerAmount: this.pointLightDefaults.flickerAmount,
-      flickerSpeed: this.pointLightDefaults.flickerHz
-    };
-    for (const [id, value] of Object.entries(values)) inputValue(id).value = String(value);
-    selectValue("flickerStyle").value = this.pointLightDefaults.flickerStyle;
     bridge().updateLabels();
   }
 

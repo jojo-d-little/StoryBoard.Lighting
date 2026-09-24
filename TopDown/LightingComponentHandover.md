@@ -65,8 +65,10 @@ and call:
 ### Point lights
 
 - `x`, `y`: image-space pixels
+- `radiusPx`: optional per-light radius in image-space pixels; falls back to `roomLighting.radiusPx`
 - `directionDeg`: degrees, where 0 points +X and 90 points +Y in screen/image coordinates
 - `coneAngleDeg`: degrees in [1, 360]
+- `intensityScale`: per-light multiplier applied to the room baseline intensity
 - `lightHeightCells`: optional per-light elevation used for shadow evaluation; falls back to the room-level value when omitted
 
 ### Blockers
@@ -87,7 +89,9 @@ and call:
 
 Point-light animation defaults are supplied separately through
 `pointLightDefaults`. They are fallback values for lights that omit sway or
-flicker settings; they do not animate ambient room lighting.
+flicker settings; they do not animate ambient room lighting. A game engine can
+update a light's authored `radiusPx` or `intensityScale` every frame to model
+gameplay changes such as adding fuel to a fire.
 
 ## API Surface
 
@@ -104,7 +108,9 @@ the geometry to allocate and validate room resources.
 
 ### `setRoomLighting(config)`
 
-Updates room lighting controls (ambient, radius, shared color defaults, etc).
+Updates room lighting controls (ambient, baseline intensity, radius and shared
+appearance defaults). Individual point lights may override the applicable
+radius, intensity, colors, gradient, and height values.
 
 ### `setPointLightDefaults(config)`
 
@@ -163,6 +169,7 @@ const frame = {
     {
       x: 420,
       y: 260,
+      radiusPx: 260,
       directionDeg: 35,
       coneAngleDeg: 48,
       motionMode: 'sway-flicker',

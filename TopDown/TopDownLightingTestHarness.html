@@ -6,7 +6,7 @@
 <title>PixiJS Top-Down Lighting Test Harness</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#20242a;color:#eee;font-family:system-ui,sans-serif}
-body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-width:720px}
+body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-width:0}
 #ui{box-sizing:border-box;height:100vh;padding:12px 14px;background:#14161a;border-right:1px solid #555;overflow-y:auto}
 #ui h2{margin:0 0 8px;font-size:16px} #ui label{display:block;margin:8px 0 3px;font-size:13px}
 #ui input[type=range]{width:100%} button{margin-top:9px}
@@ -20,7 +20,13 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 #stageFrame{position:relative;box-sizing:border-box;width:calc(100% - 32px);height:calc(100% - 32px);min-width:320px;min-height:240px;margin:16px;border:1px solid #68717d;background:#111820;resize:both;overflow:hidden;box-shadow:0 4px 18px #0008}
 #stageFrame canvas{display:block;width:100%;height:100%}
 #resizeHint{position:absolute;right:8px;bottom:5px;z-index:2;color:#aab6c4;font-size:11px;pointer-events:none;text-shadow:0 1px 2px #000}
-@media(max-width:900px){body{grid-template-columns:minmax(280px,38vw) minmax(420px,1fr)}}
+@media(max-width:900px){
+  html,body{overflow:auto}
+  body{display:flex;flex-direction:column;min-width:0;min-height:100vh}
+  #ui{width:100%;height:45vh;min-height:260px;border-right:0;border-bottom:1px solid #555}
+  #host{width:100%;height:55vh;min-height:360px;flex:1 0 360px}
+  #stageFrame{min-width:280px}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
 </head>
@@ -41,11 +47,17 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 <label>Room ambient: <span id="ambientValue">0.35</span></label>
 <input id="ambient" type="range" min="0" max="1" step=".01" value=".35">
 
-<label>Point-light radius: <span id="radiusValue">180</span> px</label>
+<label>Room light baseline intensity: <span id="roomIntensityValue">1.50</span></label>
+<input id="roomIntensity" type="range" min="0" max="4" step=".05" value="1.5">
+
+<div id="lightSelection" class="small">Editing new-light defaults</div>
+<button id="deselectLight" disabled>Deselect light / edit defaults</button>
+
+<label>Light radius: <span id="radiusValue">180</span> px</label>
 <input id="radius" type="range" min="20" max="600" value="180">
 
-<label>Point-light intensity: <span id="intensityValue">1.50</span></label>
-<input id="intensity" type="range" min="0" max="4" step=".05" value="1.5">
+<label>Light intensity scale: <span id="intensityValue">1.00</span></label>
+<input id="intensity" type="range" min="0" max="4" step=".05" value="1">
 
 <label>Point-light color</label>
 <input id="color" type="color" value="#fff2c0">
@@ -56,16 +68,16 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 <label>Point-light gradient exponent: <span id="lightGradientExponentValue">1.00</span></label>
 <input id="lightGradientExponent" type="range" min="0.25" max="4" step="0.05" value="1">
 
-<label>New light direction: <span id="lightDirectionValue">90</span> deg</label>
+<label>Light direction: <span id="lightDirectionValue">90</span> deg</label>
 <input id="lightDirection" type="range" min="0" max="360" step="1" value="90">
 
-<label>New light beam angle: <span id="lightConeAngleValue">360</span> deg</label>
+<label>Light beam angle: <span id="lightConeAngleValue">360</span> deg</label>
 <input id="lightConeAngle" type="range" min="1" max="360" step="1" value="360">
 
 <label>Light height: <span id="lightHeightValue">2.0</span> cells</label>
 <input id="lightHeight" type="range" min="0.25" max="12" step="0.25" value="2">
 
-<label>New light motion</label>
+<label>Light motion</label>
 <select id="lightMotionMode">
   <option value="static" selected>Static</option>
   <option value="sway">Directional sway</option>
@@ -187,6 +199,7 @@ let W = 1, H = 1;
 let lights = [];
 let blockers = [];
 let evaluatedLights = [];
+let selectedLightIndex = null;
 const MAX_LIGHTS = 64;
 const MAX_BLOCKERS = 64;
 const lightPositions = new Float32Array(MAX_LIGHTS * 2);
@@ -194,9 +207,9 @@ const lightIntensities = new Float32Array(MAX_LIGHTS);
 // [GLOBAL]/[PER-LIGHT] Per-light elevation in cell units. A missing authored
 // value falls back to the room-level lightHeight control.
 const lightHeightCells = new Float32Array(MAX_LIGHTS);
-// [GLOBAL] Per-light inner/core color packed as RGB triplets in 0..1.
-// Layout: [r0,g0,b0, r1,g1,b1, ...].
-const lightInnerColors = new Float32Array(MAX_LIGHTS * 3);
+// [GLOBAL] Per-light inner/core color packed as RGBA quadruplets in 0..1.
+// Layout: [r0,g0,b0,radius0, r1,g1,b1,radius1, ...].
+const lightInnerColors = new Float32Array(MAX_LIGHTS * 4);
 // [GLOBAL] Per-light outer/edge color packed as RGB triplets in 0..1.
 const lightOuterColors = new Float32Array(MAX_LIGHTS * 3);
 // [GLOBAL] Per-light radial gradient exponent (1=linear blend).
@@ -237,6 +250,7 @@ const blockerShapeModes = new Float32Array(MAX_BLOCKERS);
 
 const file = document.getElementById('file');
 const ambient = document.getElementById('ambient');
+const roomIntensity = document.getElementById('roomIntensity');
 const radius = document.getElementById('radius');
 const intensity = document.getElementById('intensity');
 const color = document.getElementById('color');
@@ -261,8 +275,46 @@ const shadowSoften = document.getElementById('shadowSoften');
 const previewLightMap = document.getElementById('previewLightMap');
 const previewMode = document.getElementById('previewMode');
 const composeMode = document.getElementById('composeMode');
+const lightSelection = document.getElementById('lightSelection');
+const deselectLight = document.getElementById('deselectLight');
 const tabButtons = Array.from(document.querySelectorAll('#controlTabs .tab-btn'));
 let activeTabId = 'tabLighting';
+
+const roomLightingDefaults = {
+  radiusPx: +radius.value,
+  intensity: +roomIntensity.value,
+  lightColorHex: color.value,
+  lightOuterColorHex: colorOuter.value,
+  lightGradientExponent: +lightGradientExponent.value,
+  lightHeightCells: +lightHeight.value
+};
+
+const pointLightDefaults = {
+  swayAmountPx: +swayAmount.value,
+  swayHz: +swaySpeed.value,
+  swayDirectionDeg: +swayDirection.value,
+  flickerAmount: +flickerAmount.value,
+  flickerHz: +flickerSpeed.value,
+  flickerStyle: flickerStyle.value
+};
+
+let lightTemplate = {
+  radiusPx: roomLightingDefaults.radiusPx,
+  intensityScale: +intensity.value,
+  color: roomLightingDefaults.lightColorHex,
+  outerColor: roomLightingDefaults.lightOuterColorHex,
+  gradientExponent: roomLightingDefaults.lightGradientExponent,
+  directionDeg: +lightDirection.value,
+  coneAngleDeg: +lightConeAngle.value,
+  lightHeightCells: roomLightingDefaults.lightHeightCells,
+  motionMode: lightMotionMode.value,
+  swayAmountPx: pointLightDefaults.swayAmountPx,
+  swayHz: pointLightDefaults.swayHz,
+  swayDirectionDeg: pointLightDefaults.swayDirectionDeg,
+  flickerAmount: pointLightDefaults.flickerAmount,
+  flickerHz: pointLightDefaults.flickerHz,
+  flickerStyle: pointLightDefaults.flickerStyle
+};
 
 function hasAnimatedLights() {
   return lights.some(function(light) {
@@ -292,6 +344,120 @@ function activateTab(tabId) {
   });
 
   syncPlacementModeUi();
+}
+
+function readLightEditorValues() {
+  return {
+    radiusPx: +radius.value,
+    intensityScale: +intensity.value,
+    color: color.value,
+    outerColor: colorOuter.value,
+    gradientExponent: +lightGradientExponent.value,
+    directionDeg: +lightDirection.value,
+    coneAngleDeg: +lightConeAngle.value,
+    lightHeightCells: +lightHeight.value,
+    motionMode: lightMotionMode.value,
+    swayAmountPx: +swayAmount.value,
+    swayHz: +swaySpeed.value,
+    swayDirectionDeg: +swayDirection.value,
+    flickerAmount: +flickerAmount.value,
+    flickerHz: +flickerSpeed.value,
+    flickerStyle: flickerStyle.value
+  };
+}
+
+function setLightEditorValues(values) {
+  radius.value = String(values.radiusPx);
+  intensity.value = String(values.intensityScale);
+  color.value = values.color;
+  colorOuter.value = values.outerColor;
+  lightGradientExponent.value = String(values.gradientExponent);
+  lightDirection.value = String(values.directionDeg);
+  lightConeAngle.value = String(values.coneAngleDeg);
+  lightHeight.value = String(values.lightHeightCells);
+  lightMotionMode.value = values.motionMode;
+  swayAmount.value = String(values.swayAmountPx);
+  swaySpeed.value = String(values.swayHz);
+  swayDirection.value = String(values.swayDirectionDeg);
+  flickerAmount.value = String(values.flickerAmount);
+  flickerSpeed.value = String(values.flickerHz);
+  flickerStyle.value = values.flickerStyle;
+}
+
+function selectedLight() {
+  return selectedLightIndex == null ? null : lights[selectedLightIndex] || null;
+}
+
+function updateLightSelectionUi() {
+  const light = selectedLight();
+  if (light) {
+    lightSelection.textContent = `Editing light ${selectedLightIndex + 1} live`;
+    deselectLight.disabled = false;
+  } else {
+    selectedLightIndex = null;
+    lightSelection.textContent = 'Editing new-light defaults';
+    deselectLight.disabled = true;
+  }
+}
+
+function updateTemplateDefaults(values) {
+  lightTemplate = { ...lightTemplate, ...values };
+  roomLightingDefaults.radiusPx = values.radiusPx;
+  roomLightingDefaults.lightColorHex = values.color;
+  roomLightingDefaults.lightOuterColorHex = values.outerColor;
+  roomLightingDefaults.lightGradientExponent = values.gradientExponent;
+  roomLightingDefaults.lightHeightCells = values.lightHeightCells;
+  pointLightDefaults.swayAmountPx = values.swayAmountPx;
+  pointLightDefaults.swayHz = values.swayHz;
+  pointLightDefaults.swayDirectionDeg = values.swayDirectionDeg;
+  pointLightDefaults.flickerAmount = values.flickerAmount;
+  pointLightDefaults.flickerHz = values.flickerHz;
+  pointLightDefaults.flickerStyle = values.flickerStyle;
+}
+
+function handleLightEditorChange() {
+  const values = readLightEditorValues();
+  const light = selectedLight();
+  if (light) {
+    Object.assign(light, values);
+  } else {
+    updateTemplateDefaults(values);
+  }
+  updateLabels();
+  submitHarnessFrame();
+}
+
+function selectLight(index) {
+  if (!lights[index]) return;
+  selectedLightIndex = index;
+  setLightEditorValues(lights[index]);
+  updateLightSelectionUi();
+  updateLabels();
+  submitHarnessFrame();
+}
+
+function deselectCurrentLight() {
+  selectedLightIndex = null;
+  setLightEditorValues(lightTemplate);
+  updateLightSelectionUi();
+  updateLabels();
+  submitHarnessFrame();
+}
+
+function findLightAt(x, y) {
+  const hitRadius = Math.max(14, Math.min(32, (+radius.value) * 0.15));
+  let closestIndex = -1;
+  let closestDistance = hitRadius;
+  for (let i = 0; i < lights.length; i++) {
+    const dx = lights[i].x - x;
+    const dy = lights[i].y - y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance <= closestDistance) {
+      closestIndex = i;
+      closestDistance = distance;
+    }
+  }
+  return closestIndex;
 }
 
 tabButtons.forEach(function(btn) {
@@ -383,6 +549,7 @@ function applyDisplayMode() {
 
 function updateLabels() {
   document.getElementById('ambientValue').textContent = (+ambient.value).toFixed(2);
+  document.getElementById('roomIntensityValue').textContent = (+roomIntensity.value).toFixed(2);
   document.getElementById('radiusValue').textContent = radius.value;
   document.getElementById('intensityValue').textContent = (+intensity.value).toFixed(2);
   document.getElementById('lightGradientExponentValue').textContent = (+lightGradientExponent.value).toFixed(2);
@@ -414,8 +581,7 @@ function rebuildLightingMap() {
 
   // [GLOBAL] Engine-wide lighting controls.
   const a = +ambient.value;
-  const R = +radius.value;
-  const I = +intensity.value;
+  const I = +roomIntensity.value;
   const cellPx = +cellSize.value;
   const count = Math.min(lights.length, MAX_LIGHTS);
   const blockerCount = Math.min(blockers.length, MAX_BLOCKERS);
@@ -436,9 +602,12 @@ function rebuildLightingMap() {
     const lightInnerColor01 = evaluated.color;
     const lightOuterColor01 = evaluated.outerColor;
     const gradientExponent = evaluated.gradientExponent;
-    lightInnerColors[i * 3] = lightInnerColor01[0];
-    lightInnerColors[i * 3 + 1] = lightInnerColor01[1];
-    lightInnerColors[i * 3 + 2] = lightInnerColor01[2];
+    lightInnerColors[i * 4] = lightInnerColor01[0];
+    lightInnerColors[i * 4 + 1] = lightInnerColor01[1];
+    lightInnerColors[i * 4 + 2] = lightInnerColor01[2];
+    // Pack the per-light radius into the unused alpha channel. This avoids
+    // adding another 64-element fragment uniform array on WebGL 1.
+    lightInnerColors[i * 4 + 3] = evaluated.radiusPx / 600.0;
     lightOuterColors[i * 3] = lightOuterColor01[0];
     lightOuterColors[i * 3 + 1] = lightOuterColor01[1];
     lightOuterColors[i * 3 + 2] = lightOuterColor01[2];
@@ -461,9 +630,10 @@ function rebuildLightingMap() {
     lightPositions[i * 2] = -1e6;
     lightPositions[i * 2 + 1] = -1e6;
     lightIntensities[i] = 0.0;
-    lightInnerColors[i * 3] = 0.0;
-    lightInnerColors[i * 3 + 1] = 0.0;
-    lightInnerColors[i * 3 + 2] = 0.0;
+    lightInnerColors[i * 4] = 0.0;
+    lightInnerColors[i * 4 + 1] = 0.0;
+    lightInnerColors[i * 4 + 2] = 0.0;
+    lightInnerColors[i * 4 + 3] = 0.0;
     lightOuterColors[i * 3] = 0.0;
     lightOuterColors[i * 3 + 1] = 0.0;
     lightOuterColors[i * 3 + 2] = 0.0;
@@ -513,7 +683,6 @@ function rebuildLightingMap() {
 
   // Stage B (lighting): [GLOBAL] light model and light list.
   lightPassFilter.uniforms.uAmbient = a;
-  lightPassFilter.uniforms.uRadiusPx = R;
   lightPassFilter.uniforms.uIntensity = I;
   lightPassFilter.uniforms.uLightCount = count;
   lightPassFilter.uniforms.uLightPosPx = lightPositions;
@@ -644,12 +813,11 @@ function createLightPassFilter() {
 
     uniform vec2 uImageSize;
     uniform float uAmbient;
-    uniform float uRadiusPx;
     uniform float uIntensity;
     uniform float uLightCount;
     uniform vec2 uLightPosPx[${MAX_LIGHTS}];
     uniform float uLightIntensity[${MAX_LIGHTS}];
-    uniform vec3 uLightInnerColor[${MAX_LIGHTS}];
+    uniform vec4 uLightInnerColor[${MAX_LIGHTS}];
     uniform vec3 uLightOuterColor[${MAX_LIGHTS}];
     uniform float uLightGradientExp[${MAX_LIGHTS}];
     uniform vec2 uLightDir[${MAX_LIGHTS}];
@@ -736,7 +904,8 @@ function createLightPassFilter() {
           vec2 lightPos = uLightPosPx[i];
           vec2 delta = pixel - lightPos;
           float d = length(delta);
-          float t = d / max(uRadiusPx, 0.0001);
+          float lightRadiusPx = max(uLightInnerColor[i].a * 600.0, 0.0001);
+          float t = d / lightRadiusPx;
 
           // Directional broadcast mask:
           // - Converts omni point lights into spotlights when cone < 360.
@@ -756,7 +925,7 @@ function createLightPassFilter() {
           // - exponent > 1.0: preserve core color longer, faster edge transition.
           // - exponent < 1.0: transition to outer color earlier.
           float radialGradientT = pow(clamp(t, 0.0, 1.0), max(uLightGradientExp[i], 0.0001));
-          vec3 lightGradientColor = mix(uLightInnerColor[i], uLightOuterColor[i], radialGradientT);
+          vec3 lightGradientColor = mix(uLightInnerColor[i].rgb, uLightOuterColor[i], radialGradientT);
 
           // Final per-light contribution:
           // intensity * radial profile * directional mask * visibility,
@@ -774,8 +943,7 @@ function createLightPassFilter() {
   return new PIXI.Filter(undefined, fragment, {
     uImageSize: [W, H],
     uAmbient: +ambient.value,
-    uRadiusPx: +radius.value,
-    uIntensity: +intensity.value,
+    uIntensity: +roomIntensity.value,
     uLightCount: 0,
     uLightPosPx: lightPositions,
     uLightIntensity: lightIntensities,
@@ -894,6 +1062,7 @@ function updateStatus() {
   document.getElementById('status').innerHTML =
     `Image: ${W} × ${H}<br>` +
     `Viewport: ${app.screen.width} × ${app.screen.height}<br>` +
+    `Light editor: ${selectedLight() ? `Light ${selectedLightIndex + 1}` : 'New-light defaults'}<br>` +
     `Point lights: ${lights.length}${clipped}<br>` +
     `Animated lights: ${animatedCount}<br>` +
     `Blockers: ${blockers.length}${blockerClipped}<br>` +
@@ -942,6 +1111,10 @@ function updateStatus() {
 
   lights = [];
   blockers = [];
+  evaluatedLights = [];
+  selectedLightIndex = null;
+  setLightEditorValues(lightTemplate);
+  updateLightSelectionUi();
 
   sceneTexture = PIXI.Texture.from(img);
   occlusionTexture = PIXI.RenderTexture.create({
@@ -1061,16 +1234,21 @@ function updateStatus() {
         );
         rebuildBlockerOverlay();
       } else {
-    lights.push({
+        const existingIndex = findLightAt(local.x, local.y);
+        if (existingIndex >= 0) {
+          selectLight(existingIndex);
+          return;
+        }
+
+        lights.push({
           x: local.x,
           y: local.y,
-          gradientExponent: +lightGradientExponent.value,
-          flickerStyle: flickerStyle.value,
-          directionDeg: +lightDirection.value,
-          coneAngleDeg: +lightConeAngle.value,
-          motionMode: lightMotionMode.value,
+          ...lightTemplate,
           phase: Math.random() * Math.PI * 2
         });
+        selectedLightIndex = lights.length - 1;
+        setLightEditorValues(lights[selectedLightIndex]);
+        updateLightSelectionUi();
       }
       submitHarnessFrame();
     }
@@ -1154,21 +1332,14 @@ function submitHarnessFrame() {
   topDownLightingPipelineComponent.submitFrame({
     roomLighting: {
       ambient: +ambient.value,
-      radiusPx: +radius.value,
-      intensity: +intensity.value,
-      lightColorHex: color.value,
-      lightOuterColorHex: colorOuter.value,
-      lightGradientExponent: +lightGradientExponent.value,
-      lightHeightCells: +lightHeight.value
+      radiusPx: roomLightingDefaults.radiusPx,
+      intensity: +roomIntensity.value,
+      lightColorHex: roomLightingDefaults.lightColorHex,
+      lightOuterColorHex: roomLightingDefaults.lightOuterColorHex,
+      lightGradientExponent: roomLightingDefaults.lightGradientExponent,
+      lightHeightCells: roomLightingDefaults.lightHeightCells
     },
-    pointLightDefaults: {
-      swayAmountPx: +swayAmount.value,
-      swayHz: +swaySpeed.value,
-      swayDirectionDeg: +swayDirection.value,
-      flickerAmount: +flickerAmount.value,
-      flickerHz: +flickerSpeed.value,
-      flickerStyle: flickerStyle.value
-    },
+    pointLightDefaults,
     pipeline: {
       shadowSoften: +shadowSoften.value
     },
@@ -1194,20 +1365,26 @@ composeMode.addEventListener('change', function() {
 ambient.addEventListener('input', function() {
   updateLabels(); submitHarnessFrame();
 });
-radius.addEventListener('input', function() {
+roomIntensity.addEventListener('input', function() {
   updateLabels(); submitHarnessFrame();
 });
-intensity.addEventListener('input', function() {
-  updateLabels(); submitHarnessFrame();
-});
-lightDirection.addEventListener('input', updateLabels);
-lightConeAngle.addEventListener('input', updateLabels);
-color.addEventListener('input', submitHarnessFrame);
-colorOuter.addEventListener('input', submitHarnessFrame);
-lightGradientExponent.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
+radius.addEventListener('input', handleLightEditorChange);
+intensity.addEventListener('input', handleLightEditorChange);
+lightDirection.addEventListener('input', handleLightEditorChange);
+lightConeAngle.addEventListener('input', handleLightEditorChange);
+color.addEventListener('input', handleLightEditorChange);
+colorOuter.addEventListener('input', handleLightEditorChange);
+lightGradientExponent.addEventListener('input', handleLightEditorChange);
+lightHeight.addEventListener('input', handleLightEditorChange);
+lightMotionMode.addEventListener('change', handleLightEditorChange);
+swayAmount.addEventListener('input', handleLightEditorChange);
+swaySpeed.addEventListener('input', handleLightEditorChange);
+swayDirection.addEventListener('input', handleLightEditorChange);
+flickerAmount.addEventListener('input', handleLightEditorChange);
+flickerSpeed.addEventListener('input', handleLightEditorChange);
+flickerStyle.addEventListener('change', handleLightEditorChange);
+deselectLight.addEventListener('click', deselectCurrentLight);
+
 cellSize.addEventListener('input', function() {
   topDownLightingPipelineComponent.setRoomGeometry({
     widthPx: W,
@@ -1230,41 +1407,15 @@ blockerStrength.addEventListener('input', function() {
   updateLabels();
   submitHarnessFrame();
 });
-lightHeight.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
 shadowSoften.addEventListener('input', function() {
   updateLabels();
   submitHarnessFrame();
 });
-lightMotionMode.addEventListener('change', updateStatus);
-swayAmount.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
-swaySpeed.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
-swayDirection.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
-flickerAmount.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
-flickerSpeed.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
-});
-flickerStyle.addEventListener('change', function() {
-  submitHarnessFrame();
-});
-
 document.getElementById('clear').addEventListener('click', function() {
   lights = [];
+  selectedLightIndex = null;
+  setLightEditorValues(lightTemplate);
+  updateLightSelectionUi();
   submitHarnessFrame();
 });
 

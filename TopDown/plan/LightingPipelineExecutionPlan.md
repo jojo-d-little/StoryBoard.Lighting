@@ -56,6 +56,7 @@ the lifecycle API before moving implementation into new modules.
 - Typecheck the pure lighting modules separately from the current browser-harness script.
 - Add unit tests for valid, partial, malformed, and over-capacity inputs.
 - Verify the same input and timestamp produce the same evaluated result.
+- Verify per-light radius overrides fall back to room radius when omitted.
 
 ### Manual validation
 
@@ -64,6 +65,8 @@ the lifecycle API before moving implementation into new modules.
 - Both flicker styles behave distinctly and consistently.
 - Per-light overrides take precedence over defaults.
 - Omitted per-light values use point-light or room-light defaults as documented.
+- Harness controls can edit the selected light live without changing other lights.
+- With no light selected, controls change only the next-light template.
 
 ### Stop gate B — behavior approval
 
