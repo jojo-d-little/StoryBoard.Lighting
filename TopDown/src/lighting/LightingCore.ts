@@ -1,5 +1,6 @@
 export type LightMotionMode = "static" | "sway" | "flicker" | "sway-flicker";
 export type FlickerStyle = "swell" | "flame";
+export type BlockerCornerStyle = "square" | "round";
 export type LightColorInput = string | number[] | { r: number; g: number; b: number };
 export type RGB01 = readonly [number, number, number];
 
@@ -56,10 +57,14 @@ export interface BlockerInput {
   cellX: number;
   /** Integer Y coordinate of the top-left occupied room cell. */
   cellY: number;
-  /** Square blocker footprint width and height in cell units. */
-  sizeCells?: number;
-  shapeMode?: number;
-  heightCells?: number;
+  /** Number of occupied room cells along the X axis. */
+  sizeXCells?: number;
+  /** Number of occupied room cells along the Y axis. */
+  sizeYCells?: number;
+  /** Edge treatment inside the rectangular footprint. Defaults to hard square corners. */
+  cornerStyle?: BlockerCornerStyle;
+  /** Vertical occlusion elevation in cell units. */
+  elevationCells?: number;
   strength?: number;
 }
 
@@ -187,6 +192,10 @@ function normalizeFlickerStyle(value: unknown): FlickerStyle {
   return value === "flame" ? "flame" : "swell";
 }
 
+function normalizeBlockerCornerStyle(value: unknown): BlockerCornerStyle {
+  return value === "round" ? "round" : "square";
+}
+
 function isHexColor(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 }
@@ -257,9 +266,10 @@ export function normalizeBlockerInput(blocker: BlockerInput | unknown): Required
   return {
     cellX: Math.floor(toNumberOr(source.cellX, 0)),
     cellY: Math.floor(toNumberOr(source.cellY, 0)),
-    sizeCells: clampRange(toNumberOr(source.sizeCells, 1), 0.25, 2),
-    shapeMode: source.shapeMode === 1 ? 1 : 0,
-    heightCells: Math.max(0, toNumberOr(source.heightCells, 0)),
+    sizeXCells: Math.max(1, Math.floor(toNumberOr(source.sizeXCells, 1))),
+    sizeYCells: Math.max(1, Math.floor(toNumberOr(source.sizeYCells, 1))),
+    cornerStyle: normalizeBlockerCornerStyle(source.cornerStyle),
+    elevationCells: Math.max(0, toNumberOr(source.elevationCells, 0)),
     strength: clampRange(toNumberOr(source.strength, 1), 0, 1)
   };
 }
@@ -276,8 +286,8 @@ export function getBlockerBoundsPx(
   const safeCellSizePx = Math.max(1, toNumberOr(cellSizePx, 1));
   const leftPx = blocker.cellX * safeCellSizePx;
   const topPx = blocker.cellY * safeCellSizePx;
-  const widthPx = blocker.sizeCells * safeCellSizePx;
-  const heightPx = blocker.sizeCells * safeCellSizePx;
+  const widthPx = blocker.sizeXCells * safeCellSizePx;
+  const heightPx = blocker.sizeYCells * safeCellSizePx;
   return {
     leftPx,
     topPx,

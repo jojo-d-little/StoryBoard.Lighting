@@ -74,8 +74,10 @@ and call:
 ### Blockers
 
 - `cellX`, `cellY`: integer room-cell coordinates for the blocker’s top-left occupied cell
-- `sizeCells`: square footprint width and height in cell units
-- `heightCells`: blocker height in cell units
+- `sizeXCells`: occupied footprint count along room X
+- `sizeYCells`: occupied footprint count along room Y
+- `cornerStyle`: `square` for hard rectangular corners or `round` for rounded corners within the same bounds
+- `elevationCells`: blocker elevation used for vertical occlusion evaluation
 - `strength`: [0, 1]
 
 ### Room lighting and pipeline
@@ -185,7 +187,15 @@ const frame = {
     }
   ],
   blockers: [
-    { cellX: 8, cellY: 6, sizeCells: 1.0, shapeMode: 0, heightCells: 1.2, strength: 1.0 }
+    {
+      cellX: 8,
+      cellY: 6,
+      sizeXCells: 1,
+      sizeYCells: 3,
+      cornerStyle: 'square',
+      elevationCells: 1.2,
+      strength: 1.0
+    }
   ]
 };
 

@@ -111,20 +111,26 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 
 <div id="tabBlockers" class="tab-panel">
 
+<div id="blockerSelection">Editing new-blocker defaults</div>
+<button id="deselectBlocker" disabled>Deselect blocker / edit defaults</button>
+
 <label>Cell size: <span id="cellSizeValue">40</span> px</label>
 <input id="cellSize" type="range" min="8" max="128" step="1" value="40">
 
-<label>Blocker diameter: <span id="blockerSizeValue">1.00</span> cells</label>
-<input id="blockerSize" type="range" min="0.25" max="2" step="0.25" value="1">
+<label>Blocker size X: <span id="blockerSizeXValue">1</span> cells</label>
+<input id="blockerSizeX" type="range" min="1" max="8" step="1" value="1">
 
-<label>Blocker shape</label>
-<select id="blockerShape">
-  <option value="square" selected>Square footprint</option>
-  <option value="circle">Circle footprint</option>
+<label>Blocker size Y: <span id="blockerSizeYValue">1</span> cells</label>
+<input id="blockerSizeY" type="range" min="1" max="8" step="1" value="1">
+
+<label>Blocker corners</label>
+<select id="blockerCornerStyle">
+  <option value="square" selected>Hard square corners</option>
+  <option value="round">Rounded corners</option>
 </select>
 
-<label>Blocker height: <span id="blockerHeightValue">1.0</span> cells</label>
-<input id="blockerHeight" type="range" min="0" max="8" step="0.25" value="1">
+<label>Blocker elevation: <span id="blockerElevationValue">1.0</span> cells</label>
+<input id="blockerElevation" type="range" min="0" max="8" step="0.25" value="1">
 
 <label>Blocker shadow strength: <span id="blockerStrengthValue">1.00</span></label>
 <input id="blockerStrength" type="range" min="0" max="1" step="0.05" value="1">
@@ -201,6 +207,7 @@ let lights = [];
 let blockers = [];
 let evaluatedLights = [];
 let selectedLightIndex = null;
+let selectedBlockerIndex = null;
 const MAX_LIGHTS = 64;
 const MAX_BLOCKERS = 64;
 const lightPositions = new Float32Array(MAX_LIGHTS * 2);
@@ -224,13 +231,15 @@ const lightDirections = new Float32Array(MAX_LIGHTS * 2);
 const lightConeAnglesDeg = new Float32Array(MAX_LIGHTS);
 const blockerPositions = new Float32Array(MAX_BLOCKERS * 2);
 // [CELL] Per-cell footprint property (half extent in cell units).
-const blockerHalfSizesCells = new Float32Array(MAX_BLOCKERS);
-// [CELL] Per-cell vertical property used for height-based occlusion.
-const blockerHeightsCells = new Float32Array(MAX_BLOCKERS);
+// [CELL] Per-blocker footprint half-extents used for rectangular occlusion.
+const blockerHalfSizeXCells = new Float32Array(MAX_BLOCKERS);
+const blockerHalfSizeYCells = new Float32Array(MAX_BLOCKERS);
+// [CELL] Per-blocker corner treatment: 0=square, 1=round.
+const blockerCornerStyles = new Float32Array(MAX_BLOCKERS);
+// [CELL] Per-blocker vertical property used for elevation-based occlusion.
+const blockerElevationCells = new Float32Array(MAX_BLOCKERS);
 // [CELL] Per-cell optical density: 0 allows light through, 1 blocks fully.
 const blockerStrengths = new Float32Array(MAX_BLOCKERS);
-// [CELL] Per-cell footprint shape: 0=square, 1=circle.
-const blockerShapeModes = new Float32Array(MAX_BLOCKERS);
 
 // Pass contract:
 // - Light positions and radius are always in source-image pixels.
@@ -260,10 +269,13 @@ const lightGradientExponent = document.getElementById('lightGradientExponent');
 const lightDirection = document.getElementById('lightDirection');
 const lightConeAngle = document.getElementById('lightConeAngle');
 const cellSize = document.getElementById('cellSize');
-const blockerSize = document.getElementById('blockerSize');
-const blockerShape = document.getElementById('blockerShape');
-const blockerHeight = document.getElementById('blockerHeight');
+const blockerSizeX = document.getElementById('blockerSizeX');
+const blockerSizeY = document.getElementById('blockerSizeY');
+const blockerCornerStyle = document.getElementById('blockerCornerStyle');
+const blockerElevation = document.getElementById('blockerElevation');
 const blockerStrength = document.getElementById('blockerStrength');
+const blockerSelection = document.getElementById('blockerSelection');
+const deselectBlocker = document.getElementById('deselectBlocker');
 const lightHeight = document.getElementById('lightHeight');
 const lightMotionMode = document.getElementById('lightMotionMode');
 const swayAmount = document.getElementById('swayAmount');
@@ -468,27 +480,68 @@ tabButtons.forEach(function(btn) {
   });
 });
 
-function upsertBlocker(cellX, cellY, sizeCells, shape, heightCells, strength) {
+function upsertBlocker(cellX, cellY, sizeXCells, sizeYCells, cornerStyle, elevationCells, strength) {
   // [CELL] cellX/cellY are the top-left occupied room cell.
-  // Keep authored footprint snapped to quarter-cell increments.
-  const snappedSize = Math.max(0.25, Math.min(2.0, Math.round(sizeCells * 4.0) / 4.0));
-  const shapeMode = shape === 'circle' ? 1 : 0;
+  // Footprint sizes are whole room-cell counts.
+  const normalizedSizeX = Math.max(1, Math.floor(sizeXCells));
+  const normalizedSizeY = Math.max(1, Math.floor(sizeYCells));
   const index = blockers.findIndex(function(b) {
     return b.cellX === cellX && b.cellY === cellY;
   });
   const next = {
     cellX: cellX,
     cellY: cellY,
-    sizeCells: snappedSize,
-    shapeMode: shapeMode,
-    heightCells: heightCells,
+    sizeXCells: normalizedSizeX,
+    sizeYCells: normalizedSizeY,
+    cornerStyle: cornerStyle === 'round' ? 'round' : 'square',
+    elevationCells: elevationCells,
     strength: strength
   };
   if (index >= 0) {
     blockers[index] = next;
+    selectedBlockerIndex = index;
   } else {
     blockers.push(next);
+    selectedBlockerIndex = blockers.length - 1;
   }
+  updateBlockerSelectionUi();
+}
+
+function selectedBlocker() {
+  return selectedBlockerIndex == null ? null : blockers[selectedBlockerIndex] || null;
+}
+
+function updateBlockerSelectionUi() {
+  const blocker = selectedBlocker();
+  if (blocker) {
+    blockerSelection.textContent = `Editing blocker ${selectedBlockerIndex + 1} live`;
+    deselectBlocker.disabled = false;
+  } else {
+    selectedBlockerIndex = null;
+    blockerSelection.textContent = 'Editing new-blocker defaults';
+    deselectBlocker.disabled = true;
+  }
+}
+
+function handleBlockerEditorChange() {
+  const blocker = selectedBlocker();
+  if (blocker) {
+    blocker.sizeXCells = Math.max(1, Math.floor(+blockerSizeX.value));
+    blocker.sizeYCells = Math.max(1, Math.floor(+blockerSizeY.value));
+    blocker.cornerStyle = blockerCornerStyle.value === 'round' ? 'round' : 'square';
+    blocker.elevationCells = +blockerElevation.value;
+    blocker.strength = +blockerStrength.value;
+  }
+  updateLabels();
+  rebuildBlockerOverlay();
+  submitHarnessFrame();
+}
+
+function deselectCurrentBlocker() {
+  selectedBlockerIndex = null;
+  updateBlockerSelectionUi();
+  updateStatus();
+  submitHarnessFrame();
 }
 
 function rebuildBlockerOverlay() {
@@ -501,16 +554,13 @@ function rebuildBlockerOverlay() {
   for (let i = 0; i < blockers.length; i++) {
     const b = blockers[i];
     const bounds = getBlockerBoundsPx(b, cellPx);
-    const sidePx = Math.max(1, bounds.widthPx);
-    if (b.shapeMode === 1) {
-      blockerOverlay.drawCircle(bounds.centerPxX, bounds.centerPxY, sidePx * 0.5);
+    const widthPx = Math.max(1, bounds.widthPx);
+    const heightPx = Math.max(1, bounds.heightPx);
+    if (b.cornerStyle === 'round') {
+      const cornerRadiusPx = Math.min(cellPx * 0.5, widthPx * 0.5, heightPx * 0.5);
+      blockerOverlay.drawRoundedRect(bounds.leftPx, bounds.topPx, widthPx, heightPx, cornerRadiusPx);
     } else {
-      blockerOverlay.drawRect(
-        bounds.leftPx,
-        bounds.topPx,
-        sidePx,
-        sidePx
-      );
+      blockerOverlay.drawRect(bounds.leftPx, bounds.topPx, widthPx, heightPx);
     }
   }
 }
@@ -553,8 +603,9 @@ function updateLabels() {
   document.getElementById('lightDirectionValue').textContent = lightDirection.value;
   document.getElementById('lightConeAngleValue').textContent = lightConeAngle.value;
   document.getElementById('cellSizeValue').textContent = cellSize.value;
-  document.getElementById('blockerSizeValue').textContent = (+blockerSize.value).toFixed(2);
-  document.getElementById('blockerHeightValue').textContent = (+blockerHeight.value).toFixed(1);
+  document.getElementById('blockerSizeXValue').textContent = blockerSizeX.value;
+  document.getElementById('blockerSizeYValue').textContent = blockerSizeY.value;
+  document.getElementById('blockerElevationValue').textContent = (+blockerElevation.value).toFixed(1);
   document.getElementById('blockerStrengthValue').textContent = (+blockerStrength.value).toFixed(2);
   document.getElementById('lightHeightValue').textContent = (+lightHeight.value).toFixed(1);
   document.getElementById('swayAmountValue').textContent = swayAmount.value;
@@ -644,22 +695,25 @@ function rebuildLightingMap() {
   for (let i = 0; i < blockerCount; i++) {
     const b = blockers[i];
     // Keep authored values stable and deterministic before feeding GPU state.
-    const diameterCells = Math.max(0.25, Math.min(2.0, Math.round(b.sizeCells * 4.0) / 4.0));
+    const sizeXCells = Math.max(1, b.sizeXCells);
+    const sizeYCells = Math.max(1, b.sizeYCells);
     const bounds = getBlockerBoundsPx(b, cellPx);
     blockerPositions[i * 2] = bounds.centerPxX;
     blockerPositions[i * 2 + 1] = bounds.centerPxY;
-    // [CELL] Blocker footprint and height are content-facing per-cell properties.
-    blockerHalfSizesCells[i] = Math.max(0.01, diameterCells * 0.5);
-    blockerShapeModes[i] = b.shapeMode === 1 ? 1.0 : 0.0;
-    blockerHeightsCells[i] = Math.max(0.0, b.heightCells);
+    // [CELL] Rectangular footprint and elevation are content-facing properties.
+    blockerHalfSizeXCells[i] = Math.max(0.5, sizeXCells * 0.5);
+    blockerHalfSizeYCells[i] = Math.max(0.5, sizeYCells * 0.5);
+    blockerCornerStyles[i] = b.cornerStyle === 'round' ? 1.0 : 0.0;
+    blockerElevationCells[i] = Math.max(0.0, b.elevationCells);
     blockerStrengths[i] = Math.max(0.0, Math.min(1.0, b.strength == null ? 1.0 : b.strength));
   }
   for (let i = blockerCount; i < MAX_BLOCKERS; i++) {
     blockerPositions[i * 2] = -1e6;
     blockerPositions[i * 2 + 1] = -1e6;
-    blockerHalfSizesCells[i] = 0.0;
-    blockerShapeModes[i] = 0.0;
-    blockerHeightsCells[i] = 0.0;
+    blockerHalfSizeXCells[i] = 0.0;
+    blockerHalfSizeYCells[i] = 0.0;
+    blockerCornerStyles[i] = 0.0;
+    blockerElevationCells[i] = 0.0;
     blockerStrengths[i] = 0.0;
   }
 
@@ -668,9 +722,10 @@ function rebuildLightingMap() {
   occlusionPassFilter.uniforms.uCellSizePx = cellPx;
   occlusionPassFilter.uniforms.uBlockerCount = blockerCount;
   occlusionPassFilter.uniforms.uBlockerPosPx = blockerPositions;
-  occlusionPassFilter.uniforms.uBlockerHalfSizeCells = blockerHalfSizesCells;
-  occlusionPassFilter.uniforms.uBlockerShapeMode = blockerShapeModes;
-  occlusionPassFilter.uniforms.uBlockerHeightCells = blockerHeightsCells;
+  occlusionPassFilter.uniforms.uBlockerHalfSizeXCells = blockerHalfSizeXCells;
+  occlusionPassFilter.uniforms.uBlockerHalfSizeYCells = blockerHalfSizeYCells;
+  occlusionPassFilter.uniforms.uBlockerCornerStyle = blockerCornerStyles;
+  occlusionPassFilter.uniforms.uBlockerElevationCells = blockerElevationCells;
   occlusionPassFilter.uniforms.uBlockerStrength = blockerStrengths;
 
   // Stage A.5 (occlusion blur): [GLOBAL] room-level shadow softening control.
@@ -739,9 +794,10 @@ function createOcclusionPassFilter() {
     uniform float uCellSizePx;
     uniform float uBlockerCount;
     uniform vec2 uBlockerPosPx[${MAX_BLOCKERS}];
-    uniform float uBlockerHalfSizeCells[${MAX_BLOCKERS}];
-    uniform float uBlockerShapeMode[${MAX_BLOCKERS}];
-    uniform float uBlockerHeightCells[${MAX_BLOCKERS}];
+    uniform float uBlockerHalfSizeXCells[${MAX_BLOCKERS}];
+    uniform float uBlockerHalfSizeYCells[${MAX_BLOCKERS}];
+    uniform float uBlockerCornerStyle[${MAX_BLOCKERS}];
+    uniform float uBlockerElevationCells[${MAX_BLOCKERS}];
     uniform float uBlockerStrength[${MAX_BLOCKERS}];
     uniform float uHeightEncodeScale;
 
@@ -761,19 +817,21 @@ function createOcclusionPassFilter() {
           // Convert from pixel space to cell space so blocker diameter is
           // stable across different cell pixel sizes.
           vec2 deltaCells = abs((pixel - blockerPos) / max(uCellSizePx, 0.0001));
-          float halfSize = uBlockerHalfSizeCells[i];
-
-          // Two footprint tests; select one based on per-blocker shape mode.
-          bool squareInside = (deltaCells.x <= halfSize && deltaCells.y <= halfSize);
-          vec2 signedDeltaCells = (pixel - blockerPos) / max(uCellSizePx, 0.0001);
-          bool circleInside = (length(signedDeltaCells) <= halfSize);
-          bool isCircle = uBlockerShapeMode[i] > 0.5;
-          bool inside = isCircle ? circleInside : squareInside;
+          float halfSizeX = uBlockerHalfSizeXCells[i];
+          float halfSizeY = uBlockerHalfSizeYCells[i];
+          // A round blocker keeps the same rectangular bounds but rounds each
+          // corner by up to half a cell. Square blockers use radius zero.
+          float cornerRadius = min(0.5 * uBlockerCornerStyle[i], min(halfSizeX, halfSizeY));
+          vec2 roundedBoxOffset = deltaCells - vec2(halfSizeX - cornerRadius, halfSizeY - cornerRadius);
+          float roundedBoxDistance = length(max(roundedBoxOffset, vec2(0.0)))
+            + min(max(roundedBoxOffset.x, roundedBoxOffset.y), 0.0)
+            - cornerRadius;
+          bool inside = roundedBoxDistance <= 0.0;
 
           // If multiple blockers overlap, keep the tallest one so the
           // light-stage height test is conservative and predictable.
           if (inside) {
-            float h = uBlockerHeightCells[i];
+            float h = uBlockerElevationCells[i];
             if (h >= maxHeightCells) {
               maxHeightCells = h;
               maxStrength = uBlockerStrength[i];
@@ -794,9 +852,10 @@ function createOcclusionPassFilter() {
     uCellSizePx: +cellSize.value,
     uBlockerCount: 0,
     uBlockerPosPx: blockerPositions,
-    uBlockerHalfSizeCells: blockerHalfSizesCells,
-    uBlockerShapeMode: blockerShapeModes,
-    uBlockerHeightCells: blockerHeightsCells,
+    uBlockerHalfSizeXCells: blockerHalfSizeXCells,
+    uBlockerHalfSizeYCells: blockerHalfSizeYCells,
+    uBlockerCornerStyle: blockerCornerStyles,
+    uBlockerElevationCells: blockerElevationCells,
     uBlockerStrength: blockerStrengths,
     uHeightEncodeScale: 16
   });
@@ -1061,6 +1120,7 @@ function updateStatus() {
     `Image: ${W} × ${H}<br>` +
     `Viewport: ${app.screen.width} × ${app.screen.height}<br>` +
     `Light editor: ${selectedLight() ? `Light ${selectedLightIndex + 1}` : 'New-light defaults'}<br>` +
+    `Blocker editor: ${selectedBlocker() ? `Blocker ${selectedBlockerIndex + 1}` : 'New-blocker defaults'}<br>` +
     `Point lights: ${lights.length}${clipped}<br>` +
     `Animated lights: ${animatedCount}<br>` +
     `Blockers: ${blockers.length}${blockerClipped}<br>` +
@@ -1225,9 +1285,10 @@ function updateStatus() {
         upsertBlocker(
           cellX,
           cellY,
-          +blockerSize.value,
-          blockerShape.value,
-          +blockerHeight.value,
+          +blockerSizeX.value,
+          +blockerSizeY.value,
+          blockerCornerStyle.value,
+          +blockerElevation.value,
           +blockerStrength.value
         );
         rebuildBlockerOverlay();
@@ -1393,18 +1454,22 @@ cellSize.addEventListener('input', function() {
   rebuildBlockerOverlay();
   submitHarnessFrame();
 });
-blockerSize.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
+blockerSizeX.addEventListener('input', function() {
+  handleBlockerEditorChange();
 });
-blockerHeight.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
+blockerSizeY.addEventListener('input', function() {
+  handleBlockerEditorChange();
+});
+blockerCornerStyle.addEventListener('change', function() {
+  handleBlockerEditorChange();
+});
+blockerElevation.addEventListener('input', function() {
+  handleBlockerEditorChange();
 });
 blockerStrength.addEventListener('input', function() {
-  updateLabels();
-  submitHarnessFrame();
+  handleBlockerEditorChange();
 });
+deselectBlocker.addEventListener('click', deselectCurrentBlocker);
 shadowSoften.addEventListener('input', function() {
   updateLabels();
   submitHarnessFrame();
@@ -1419,6 +1484,8 @@ document.getElementById('clear').addEventListener('click', function() {
 
 document.getElementById('clearBlockers').addEventListener('click', function() {
   blockers = [];
+  selectedBlockerIndex = null;
+  updateBlockerSelectionUi();
   rebuildBlockerOverlay();
   submitHarnessFrame();
 });

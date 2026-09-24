@@ -56,30 +56,41 @@ describe("lighting core normalization", () => {
     expect(normalizeBlockerInput({
       cellX: 3.9,
       cellY: -2.2,
-      sizeCells: 9,
-      shapeMode: 1,
-      heightCells: -1,
+      sizeXCells: 9,
+      sizeYCells: 3.7,
+      cornerStyle: "round",
+      elevationCells: -1,
       strength: 2
     })).toEqual({
       cellX: 3,
       cellY: -3,
-      sizeCells: 2,
-      shapeMode: 1,
-      heightCells: 0,
+      sizeXCells: 9,
+      sizeYCells: 3,
+      cornerStyle: "round",
+      elevationCells: 0,
       strength: 1
     });
   });
 
+  it("defaults blocker corners to square and accepts rounded corners", () => {
+    expect(normalizeBlockerInput({ sizeXCells: 2, sizeYCells: 3 })).toMatchObject({
+      cornerStyle: "square"
+    });
+    expect(normalizeBlockerInput({ sizeXCells: 2, sizeYCells: 3, cornerStyle: "round" })).toMatchObject({
+      cornerStyle: "round"
+    });
+  });
+
   it("derives blocker pixel bounds from the top-left occupied cell", () => {
-    const blocker = normalizeBlockerInput({ cellX: 3, cellY: 4, sizeCells: 2 });
+    const blocker = normalizeBlockerInput({ cellX: 3, cellY: 4, sizeXCells: 2, sizeYCells: 3 });
 
     expect(getBlockerBoundsPx(blocker, 40)).toEqual({
       leftPx: 120,
       topPx: 160,
       widthPx: 80,
-      heightPx: 80,
+      heightPx: 120,
       centerPxX: 160,
-      centerPxY: 200
+      centerPxY: 220
     });
   });
 
