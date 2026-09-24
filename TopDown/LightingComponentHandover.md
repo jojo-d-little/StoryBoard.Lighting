@@ -14,10 +14,10 @@ It exists so gameplay code can hand off structured data without touching shader/
 ## Source Of Truth
 
 - Authoring source: `TopDownLightingPipelineComponent.ts`
-- Runtime artifact used by browser harness: `TopDownLightingPipelineComponent.js` (generated)
+- Runtime artifact used by browser harness: `dist/TopDownLightingPipelineComponent.js` (generated)
 - Harness script: `TopDownLightingTestHarness.html`
 
-Do not hand-edit `TopDownLightingPipelineComponent.js`.
+Do not hand-edit files under `dist/`.
 
 ## Build And Test Workflow
 
@@ -91,9 +91,16 @@ flicker settings; they do not animate ambient room lighting.
 
 ## API Surface
 
-### `setRoomImage(imageElement)`
+### `setRoomImage(imageElement, geometry)`
 
-Bootstraps render targets/passes for a new room image.
+Bootstraps render targets/passes for a new room image and establishes room
+geometry (`widthPx`, `heightPx`, and `cellSizePx`).
+
+### `setRoomGeometry(geometry)`
+
+Updates the room-space geometry contract. In the current prototype this keeps
+the harness cell-size mapping synchronized; the extracted component will use
+the geometry to allocate and validate room resources.
 
 ### `setRoomLighting(config)`
 
@@ -150,7 +157,6 @@ const frame = {
     flickerStyle: 'flame'
   },
   pipeline: {
-    cellSizePx: 40,
     shadowSoften: 1.3
   },
   pointLights: [

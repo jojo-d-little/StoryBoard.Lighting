@@ -2,13 +2,13 @@
 
 This workspace runs a dual-harness setup:
 
-- Browser harness runtime: `TopDownLightingTestHarness.html` + generated `TopDownLightingPipelineComponent.js`
+- Browser harness runtime: `TopDownLightingTestHarness.html` + generated `dist/TopDownLightingPipelineComponent.js`
 - Engine-integration source of truth: `TopDownLightingPipelineComponent.ts`
 
 ## Rules
 
 1. Edit `TopDownLightingPipelineComponent.ts` only.
-2. Do not hand-edit `TopDownLightingPipelineComponent.js` (it is generated).
+2. Do not hand-edit files under `dist/` (they are generated).
 3. Rebuild JS after TS edits before testing in the HTML harness.
 
 ## Commands

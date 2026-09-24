@@ -6,7 +6,8 @@
 <title>PixiJS Top-Down Lighting Test Harness</title>
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#20242a;color:#eee;font-family:system-ui,sans-serif}
-#ui{position:fixed;z-index:10;left:12px;top:12px;padding:12px 14px;background:rgba(20,22,26,.95);border:1px solid #555;border-radius:8px;min-width:290px;box-shadow:0 4px 20px #0008}
+body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-width:720px}
+#ui{box-sizing:border-box;height:100vh;padding:12px 14px;background:#14161a;border-right:1px solid #555;overflow-y:auto}
 #ui h2{margin:0 0 8px;font-size:16px} #ui label{display:block;margin:8px 0 3px;font-size:13px}
 #ui input[type=range]{width:100%} button{margin-top:9px}
 .small{font-size:12px;color:#aaa;margin-top:8px;line-height:1.4}
@@ -15,10 +16,13 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#20242a;col
 .tab-btn.active{background:#3f516a;border-color:#8fb0de;color:#f3f7ff}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
-#host{width:100%;height:100%} canvas{display:block}
+#host{position:relative;min-width:0;min-height:0;width:100%;height:100%;overflow:auto;background:#20242a}
+#stageFrame{position:relative;box-sizing:border-box;width:calc(100% - 32px);height:calc(100% - 32px);min-width:320px;min-height:240px;margin:16px;border:1px solid #68717d;background:#111820;resize:both;overflow:hidden;box-shadow:0 4px 18px #0008}
+#stageFrame canvas{display:block;width:100%;height:100%}
+#resizeHint{position:absolute;right:8px;bottom:5px;z-index:2;color:#aab6c4;font-size:11px;pointer-events:none;text-shadow:0 1px 2px #000}
+@media(max-width:900px){body{grid-template-columns:minmax(280px,38vw) minmax(420px,1fr)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js"></script>
-<script src="./TopDownLightingPipelineComponent.js"></script>
 </head>
 <body>
 <div id="ui">
@@ -138,15 +142,22 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#20242a;col
 Choose an image above. Then click the image to place point lights.
 </div>
 </div>
-<div id="host"></div>
+<div id="host">
+  <div id="stageFrame">
+    <div id="resizeHint">Drag this corner to resize the presentation viewport</div>
+  </div>
+</div>
 
-<script>
+<script type="module">
+import { TopDownLightingPipelineComponent } from './dist/TopDownLightingPipelineComponent.js';
+
+const stageFrame = document.getElementById('stageFrame');
 const app = new PIXI.Application({
-  resizeTo: window,
+  resizeTo: stageFrame,
   backgroundColor: 0x20242a,
   antialias: true
 });
-document.getElementById('host').appendChild(app.view);
+stageFrame.appendChild(app.view);
 
 let sceneSprite = null;
 let sceneTexture = null;
@@ -175,6 +186,7 @@ let blockerOverlay = null;
 let W = 1, H = 1;
 let lights = [];
 let blockers = [];
+let evaluatedLights = [];
 const MAX_LIGHTS = 64;
 const MAX_BLOCKERS = 64;
 const lightPositions = new Float32Array(MAX_LIGHTS * 2);
@@ -389,97 +401,6 @@ function updateLabels() {
   document.getElementById('shadowSoftenValue').textContent = (+shadowSoften.value).toFixed(1);
 }
 
-function hexRgb(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-function clamp01(value) {
-  return Math.max(0, Math.min(1, value));
-}
-
-// Accept light color from multiple engine payload shapes:
-// - '#rrggbb'
-// - [r,g,b] where each channel is 0..1 or 0..255
-// - {r,g,b} where each channel is 0..1 or 0..255
-// Falls back to provided default color when value is missing/invalid.
-function normalizeLightColor01(lightColor, fallback01) {
-  if (typeof lightColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(lightColor)) {
-    const rgb = hexRgb(lightColor);
-    return [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
-  }
-
-  if (Array.isArray(lightColor) && lightColor.length >= 3) {
-    const rawR = Number(lightColor[0]);
-    const rawG = Number(lightColor[1]);
-    const rawB = Number(lightColor[2]);
-    if (Number.isFinite(rawR) && Number.isFinite(rawG) && Number.isFinite(rawB)) {
-      const usesByteRange = rawR > 1 || rawG > 1 || rawB > 1;
-      if (usesByteRange) {
-        return [clamp01(rawR / 255), clamp01(rawG / 255), clamp01(rawB / 255)];
-      }
-      return [clamp01(rawR), clamp01(rawG), clamp01(rawB)];
-    }
-  }
-
-  if (lightColor && typeof lightColor === 'object') {
-    const rawR = Number(lightColor.r);
-    const rawG = Number(lightColor.g);
-    const rawB = Number(lightColor.b);
-    if (Number.isFinite(rawR) && Number.isFinite(rawG) && Number.isFinite(rawB)) {
-      const usesByteRange = rawR > 1 || rawG > 1 || rawB > 1;
-      if (usesByteRange) {
-        return [clamp01(rawR / 255), clamp01(rawG / 255), clamp01(rawB / 255)];
-      }
-      return [clamp01(rawR), clamp01(rawG), clamp01(rawB)];
-    }
-  }
-
-  return fallback01;
-}
-
-function fract(value) {
-  return value - Math.floor(value);
-}
-
-function smoothstep01(t) {
-  return t * t * (3.0 - 2.0 * t);
-}
-
-// Simple deterministic 1D hash for stable pseudo-random flicker bands.
-function hash11(value) {
-  return fract(Math.sin(value * 127.1 + 311.7) * 43758.5453123);
-}
-
-// Smooth random function in [0,1] by interpolating between hashed cells.
-function smoothRandom1D(t) {
-  const i = Math.floor(t);
-  const f = t - i;
-  const a = hash11(i);
-  const b = hash11(i + 1.0);
-  return a + (b - a) * smoothstep01(f);
-}
-
-// Candle-like flicker profile with mostly bright output and occasional dips.
-function flameFlickerNoise01(nowSeconds, hz, phase) {
-  const speed = Math.max(0.001, hz);
-  const t = nowSeconds * speed;
-  const nSlow = smoothRandom1D(t * 1.0 + phase * 0.17);
-  const nMid = smoothRandom1D(t * 2.7 + phase * 0.53);
-  const nFast = smoothRandom1D(t * 6.1 + phase * 1.11);
-
-  // Weighted blend keeps flame alive without perfectly periodic pumping.
-  const blended = clamp01(nSlow * 0.55 + nMid * 0.30 + nFast * 0.15);
-
-  // Gamma-like shaping biases toward brighter values (flames spend more
-  // time near bright state than dim state).
-  const brightBias = Math.pow(blended, 0.45);
-
-  // Rare fast dips add candle-like instability and avoid smooth swelling.
-  const dip = Math.pow(1.0 - nFast, 6.0);
-  return clamp01(brightBias - dip * 0.35);
-}
-
 function rebuildLightingMap() {
   if (!lightPassFilter || !lightPassContainer || !lightMapTexture) return;
   if (!occlusionPassFilter || !occlusionPassContainer || !occlusionTexture) return;
@@ -493,83 +414,28 @@ function rebuildLightingMap() {
 
   // [GLOBAL] Engine-wide lighting controls.
   const a = +ambient.value;
-  const [cr,cg,cb] = hexRgb(color.value);
-  const [ocr,ocg,ocb] = hexRgb(colorOuter.value);
-  const defaultLightInnerColor01 = [cr / 255, cg / 255, cb / 255];
-  const defaultLightOuterColor01 = [ocr / 255, ocg / 255, ocb / 255];
-  const defaultLightGradientExponent = Math.max(0.01, +lightGradientExponent.value);
   const R = +radius.value;
   const I = +intensity.value;
   const cellPx = +cellSize.value;
-  const lightHeightCellsGlobal = +lightHeight.value;
-  const swayAmountPxGlobal = +swayAmount.value;
-  const swayHzGlobal = +swaySpeed.value;
-  const swayDirectionDegGlobal = +swayDirection.value;
-  const flickerDepthGlobal = +flickerAmount.value;
-  const flickerHzGlobal = +flickerSpeed.value;
-  const flickerStyleGlobal = normalizeFlickerStyle(flickerStyle.value);
-  const nowSeconds = performance.now() * 0.001;
   const count = Math.min(lights.length, MAX_LIGHTS);
   const blockerCount = Math.min(blockers.length, MAX_BLOCKERS);
 
   for (let i = 0; i < count; i++) {
-    const light = lights[i];
-    const mode = light.motionMode || 'static';
-    const phase = light.phase || 0;
-    let animatedX = light.x;
-    let animatedY = light.y;
-    let intensityScale = 1.0;
+    const evaluated = evaluatedLights[i];
+    if (!evaluated) continue;
 
-    // Per-light motion overrides (engine payload) with global UI fallback.
-    const lightSwayAmountPx = light.swayAmountPx == null ? swayAmountPxGlobal : Number(light.swayAmountPx);
-    const lightSwayHz = light.swayHz == null
-      ? (light.swaySpeedHz == null ? swayHzGlobal : Number(light.swaySpeedHz))
-      : Number(light.swayHz);
-    const lightSwayDirectionDeg = light.swayDirectionDeg == null ? swayDirectionDegGlobal : Number(light.swayDirectionDeg);
-    const lightSwayRadians = lightSwayDirectionDeg * Math.PI / 180.0;
-    const lightFlickerAmount = light.flickerAmount == null ? flickerDepthGlobal : Number(light.flickerAmount);
-    const lightFlickerHz = light.flickerHz == null
-      ? (light.flickerSpeedHz == null ? flickerHzGlobal : Number(light.flickerSpeedHz))
-      : Number(light.flickerHz);
-    const lightFlickerStyle = normalizeFlickerStyle(light.flickerStyle == null ? flickerStyleGlobal : light.flickerStyle);
-    const baseIntensityScale = light.intensityScale == null ? 1.0 : Number(light.intensityScale);
-    const effectiveLightHeightCells = light.lightHeightCells == null
-      ? lightHeightCellsGlobal
-      : Math.max(0.25, Number(light.lightHeightCells));
-
-    if (mode === 'sway' || mode === 'sway-flicker') {
-      const swing = Math.sin((nowSeconds * lightSwayHz * Math.PI * 2.0) + phase);
-      animatedX += Math.cos(lightSwayRadians) * lightSwayAmountPx * swing;
-      animatedY += Math.sin(lightSwayRadians) * lightSwayAmountPx * swing;
-    }
-
-    if (mode === 'flicker' || mode === 'sway-flicker') {
-      if (lightFlickerStyle === 'flame') {
-        const flame01 = flameFlickerNoise01(nowSeconds, lightFlickerHz, phase);
-        intensityScale = 1.0 - lightFlickerAmount + lightFlickerAmount * flame01;
-      } else {
-        // Swell style: the original smooth periodic flicker behavior.
-        const n1 = Math.sin((nowSeconds * lightFlickerHz * 3.7) + phase);
-        const n2 = Math.sin((nowSeconds * lightFlickerHz * 8.9) + phase * 1.7);
-        const noise01 = (n1 * 0.6 + n2 * 0.4) * 0.5 + 0.5;
-        intensityScale = 1.0 - lightFlickerAmount + lightFlickerAmount * noise01;
-      }
-    }
-
-    lightPositions[i * 2] = animatedX;
-    lightPositions[i * 2 + 1] = animatedY;
-    lightIntensities[i] = Math.max(0.0, baseIntensityScale * intensityScale);
-    lightHeightCells[i] = effectiveLightHeightCells;
+    lightPositions[i * 2] = evaluated.x;
+    lightPositions[i * 2 + 1] = evaluated.y;
+    lightIntensities[i] = evaluated.intensity;
+    lightHeightCells[i] = evaluated.lightHeightCells;
 
     // Per-light gradient colors:
     // - Inner color is the core tint near the emitter center.
     // - Outer color is the edge tint near the radius boundary.
     // - Missing values fall back to room-global color controls.
-    const lightInnerColor01 = normalizeLightColor01(light.color, defaultLightInnerColor01);
-    const lightOuterColor01 = normalizeLightColor01(light.outerColor, defaultLightOuterColor01);
-    const gradientExponent = light.gradientExponent == null
-      ? defaultLightGradientExponent
-      : Math.max(0.01, Number(light.gradientExponent));
+    const lightInnerColor01 = evaluated.color;
+    const lightOuterColor01 = evaluated.outerColor;
+    const gradientExponent = evaluated.gradientExponent;
     lightInnerColors[i * 3] = lightInnerColor01[0];
     lightInnerColors[i * 3 + 1] = lightInnerColor01[1];
     lightInnerColors[i * 3 + 2] = lightInnerColor01[2];
@@ -582,14 +448,14 @@ function rebuildLightingMap() {
     // - 0 deg points right (+X)
     // - 90 deg points down (+Y), matching canvas coordinates.
     // We store a unit vector so shader math is a cheap dot product.
-    const directionRad = (light.directionDeg || 0) * Math.PI / 180.0;
+    const directionRad = evaluated.directionDeg * Math.PI / 180.0;
     lightDirections[i * 2] = Math.cos(directionRad);
     lightDirections[i * 2 + 1] = Math.sin(directionRad);
 
     // Cone/broadcast angle model:
     // - 360 deg means emit equally in all directions.
     // - Smaller angles narrow the beam (flashlight-like behavior).
-    lightConeAnglesDeg[i] = Math.max(1.0, Math.min(360.0, light.coneAngleDeg == null ? 360.0 : light.coneAngleDeg));
+    lightConeAnglesDeg[i] = evaluated.coneAngleDeg;
   }
   for (let i = count; i < MAX_LIGHTS; i++) {
     lightPositions[i * 2] = -1e6;
@@ -1027,6 +893,7 @@ function updateStatus() {
   const soften = (+shadowSoften.value).toFixed(1);
   document.getElementById('status').innerHTML =
     `Image: ${W} × ${H}<br>` +
+    `Viewport: ${app.screen.width} × ${app.screen.height}<br>` +
     `Point lights: ${lights.length}${clipped}<br>` +
     `Animated lights: ${animatedCount}<br>` +
     `Blockers: ${blockers.length}${blockerClipped}<br>` +
@@ -1036,9 +903,9 @@ function updateStatus() {
     `Passes: Occlusion → Occlusion blur → GPU light-map pass → ${modeName}`;
 }
 
-function setupSceneFromImage(img) {
-  W = img.naturalWidth;
-  H = img.naturalHeight;
+ function setupSceneFromImage(img, geometry) {
+   W = geometry.widthPx;
+   H = geometry.heightPx;
 
   if (sceneSprite) {
     app.stage.removeChild(sceneSprite);
@@ -1194,7 +1061,7 @@ function setupSceneFromImage(img) {
         );
         rebuildBlockerOverlay();
       } else {
-        lights.push(normalizePointLightInput({
+    lights.push({
           x: local.x,
           y: local.y,
           gradientExponent: +lightGradientExponent.value,
@@ -1203,7 +1070,7 @@ function setupSceneFromImage(img) {
           coneAngleDeg: +lightConeAngle.value,
           motionMode: lightMotionMode.value,
           phase: Math.random() * Math.PI * 2
-        }));
+        });
       }
       submitHarnessFrame();
     }
@@ -1226,7 +1093,11 @@ function loadImage(fileObject) {
     const img = new Image();
 
     img.onload = function() {
-      setupSceneFromImage(img);
+      topDownLightingPipelineComponent.setRoomImage(img, {
+        widthPx: img.naturalWidth,
+        heightPx: img.naturalHeight,
+        cellSizePx: +cellSize.value
+      });
     };
 
     img.onerror = function() {
@@ -1244,6 +1115,32 @@ function loadImage(fileObject) {
 
   reader.readAsDataURL(fileObject);
 }
+
+window.lightingHarnessBridge = {
+  setupSceneFromImage,
+  setPointLights(nextLights) {
+    lights = nextLights;
+  },
+  setBlockers(nextBlockers) {
+    blockers = nextBlockers;
+  },
+  setEvaluatedLights(nextLights) {
+    evaluatedLights = nextLights;
+  },
+  rebuildBlockerOverlay,
+  updateLabels,
+  rebuildLightingMap,
+  applyDisplayMode,
+  updateStatus,
+  getOutputs() {
+    return {
+      composedTexture,
+      lightMapTexture,
+      occlusionTexture,
+      occlusionSoftTexture
+    };
+  }
+};
 
 const topDownLightingPipelineComponent = new TopDownLightingPipelineComponent();
 // Expose prototype API in devtools for easy engine-side experimentation.
@@ -1273,7 +1170,6 @@ function submitHarnessFrame() {
       flickerStyle: flickerStyle.value
     },
     pipeline: {
-      cellSizePx: +cellSize.value,
       shadowSoften: +shadowSoften.value
     },
     pointLights: lights,
@@ -1313,6 +1209,11 @@ lightGradientExponent.addEventListener('input', function() {
   submitHarnessFrame();
 });
 cellSize.addEventListener('input', function() {
+  topDownLightingPipelineComponent.setRoomGeometry({
+    widthPx: W,
+    heightPx: H,
+    cellSizePx: +cellSize.value
+  });
   updateLabels();
   rebuildBlockerOverlay();
   submitHarnessFrame();
@@ -1372,6 +1273,13 @@ document.getElementById('clearBlockers').addEventListener('click', function() {
   rebuildBlockerOverlay();
   submitHarnessFrame();
 });
+
+const stageResizeObserver = new ResizeObserver(function() {
+  app.renderer.resize(stageFrame.clientWidth, stageFrame.clientHeight);
+  fitImage();
+  updateStatus();
+});
+stageResizeObserver.observe(stageFrame);
 
 window.addEventListener('resize', fitImage);
 
