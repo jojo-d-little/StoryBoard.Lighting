@@ -253,7 +253,7 @@ const blockerStrengths = new Float32Array(MAX_BLOCKERS);
 // - gl_FragCoord: current fragment (pixel) position in the active render target.
 // - Uniforms: read-only inputs passed from JS to shaders each frame/pass.
 // - Channel packing: storing multiple data fields in RGBA texture channels.
-//   Here: occlusion R=encoded blocker height, G=blocker strength.
+//   Here: occlusion R=encoded blocker height, G=blocker strength, B=occupancy.
 // - Encode/decode scale: maps cell-height floats into 0..1 texture range and back.
 // - Visibility vs shadow: visibility=1 means full light; shadow=1 means full block.
 // - Compose: final color = sceneColor * lightColor (per pixel).
@@ -810,11 +810,12 @@ function createOcclusionPassFilter() {
       // Height goes into R, strength goes into G.
       float maxHeightCells = 0.0;
       float maxStrength = 0.0;
+      float occupied = 0.0;
 
       for (int i = 0; i < ${MAX_BLOCKERS}; i++) {
         if (float(i) < uBlockerCount) {
           vec2 blockerPos = uBlockerPosPx[i];
-          // Convert from pixel space to cell space so blocker diameter is
+          // Convert from pixel space to cell space so blocker footprints stay
           // stable across different cell pixel sizes.
           vec2 deltaCells = abs((pixel - blockerPos) / max(uCellSizePx, 0.0001));
           float halfSizeX = uBlockerHalfSizeXCells[i];
@@ -831,6 +832,7 @@ function createOcclusionPassFilter() {
           // If multiple blockers overlap, keep the tallest one so the
           // light-stage height test is conservative and predictable.
           if (inside) {
+            occupied = 1.0;
             float h = uBlockerElevationCells[i];
             if (h >= maxHeightCells) {
               maxHeightCells = h;
@@ -841,9 +843,9 @@ function createOcclusionPassFilter() {
       }
 
       // Height is normalized into 0..1 for texture storage.
-      // R: encoded height, G: shadow strength, B unused, A constant 1.
+      // R: encoded height, G: shadow strength, B: blocker occupancy, A constant 1.
       float encodedHeight = clamp(maxHeightCells / max(uHeightEncodeScale, 0.0001), 0.0, 1.0);
-      gl_FragColor = vec4(encodedHeight, clamp(maxStrength, 0.0, 1.0), 0.0, 1.0);
+      gl_FragColor = vec4(encodedHeight, clamp(maxStrength, 0.0, 1.0), occupied, 1.0);
     }
   `;
 
@@ -883,6 +885,7 @@ function createLightPassFilter() {
     uniform float uCellSizePx;
     uniform float uLightHeightCells[${MAX_LIGHTS}];
     uniform sampler2D uOcclusionMap;
+    uniform sampler2D uOcclusionOccupancyMap;
     uniform float uHeightEncodeScale;
 
     // Returns how strongly this light ray is shadowed at pixelPos.
@@ -892,12 +895,12 @@ function createLightPassFilter() {
       float rayLen = length(ray);
       if (rayLen <= 0.0001) return 0.0;
 
-      // March fixed steps from light toward shaded pixel.
-      // Each step samples occlusion texture for blocker height/strength.
+      // March fixed steps from light toward shaded pixel, excluding the target
+      // pixel itself. The target must not count as an intervening blocker.
       vec2 dir = ray / rayLen;
       const int STEPS = 32;
       float strongestShadow = 0.0;
-      for (int s = 1; s <= STEPS; s++) {
+      for (int s = 1; s < STEPS; s++) {
         float tRay = float(s) / float(STEPS);
         vec2 samplePos = lightPos + dir * (rayLen * tRay);
 
@@ -909,9 +912,9 @@ function createLightPassFilter() {
         float blockerHeightCells = occ.r * uHeightEncodeScale;
         float blockerStrength = occ.g;
 
-      // Height model: this light starts at its own elevation and linearly
-      // approaches 0 at the shaded pixel.
-      float rayHeightAtSample = lightHeightCells * (1.0 - tRay);
+        // Height model: this light starts at its own elevation and linearly
+        // approaches 0 at the shaded pixel.
+        float rayHeightAtSample = lightHeightCells * (1.0 - tRay);
 
         // If blocker is tall enough at this step, it contributes shadow.
         // Keep max strength so strongest overlap wins.
@@ -970,8 +973,13 @@ function createLightPassFilter() {
           vec2 toPixelDir = d > 0.0001 ? (delta / d) : vec2(1.0, 0.0);
           float directionalMask = coneFactor(uLightDir[i], uLightConeDeg[i], toPixelDir);
 
-          // Shadow comes from occlusion pass. Convert to visibility.
-          float shadowAmount = rayShadowAmountByMap(lightPos, pixel, uLightHeightCells[i]);
+          // A blocker receives the light on its own occupied surface. Its
+          // footprint may cast a shadow, but it is not shadowed by itself.
+          vec2 targetUv = clamp(pixel / uImageSize, 0.0, 1.0);
+          float targetIsBlocker = texture2D(uOcclusionOccupancyMap, targetUv).b;
+          float shadowAmount = targetIsBlocker > 0.5
+            ? 0.0
+            : rayShadowAmountByMap(lightPos, pixel, uLightHeightCells[i]);
           float visibility = 1.0 - clamp(shadowAmount, 0.0, 1.0);
 
           // Radial two-color gradient:
@@ -1012,6 +1020,7 @@ function createLightPassFilter() {
     uCellSizePx: +cellSize.value,
     uLightHeightCells: lightHeightCells,
     uOcclusionMap: occlusionSoftTexture,
+    uOcclusionOccupancyMap: occlusionTexture,
     uHeightEncodeScale: 16
   });
 }

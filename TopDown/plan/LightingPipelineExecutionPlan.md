@@ -120,8 +120,10 @@ Compare extracted output with the current harness for:
 - Omni and cone lights.
 - Inner and outer gradient colors.
 - Ambient contribution.
-- Blockers with square and circular footprints.
-- Blocker height and strength.
+- Blockers with rectangular footprints and square or rounded corners.
+- Blocker elevation and strength.
+- Blocker footprints receive their own light while casting shadows only onto
+  room pixels behind them relative to the light.
 - Shadow softening.
 - Sway and both flicker styles.
 - Multiple lights and blocker limits.

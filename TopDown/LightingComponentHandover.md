@@ -80,6 +80,10 @@ and call:
 - `elevationCells`: blocker elevation used for vertical occlusion evaluation
 - `strength`: [0, 1]
 
+Blocker occupancy is a lit receiving surface in the top-down model. A blocker
+casts its shadow onto room pixels behind it relative to the light, but its own
+occupied footprint is not self-shadowed.
+
 ### Room lighting and pipeline
 
 - `ambient`: [0, 1]
