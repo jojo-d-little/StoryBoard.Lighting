@@ -1,7 +1,7 @@
 {
   "name": "@jojo-d-little/storyboard-lighting",
   "private": false,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "PixiJS 8 top-down lighting pipeline package",
   "publishConfig": {
     "@jojo-d-little:registry": "https://npm.pkg.github.com"
