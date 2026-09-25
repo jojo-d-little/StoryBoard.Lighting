@@ -6,6 +6,9 @@ From a terminal, change to the `TopDown` folder and install dependencies:
 npm ci
 ```
 
+Use Node.js `26.8.2` for this workspace. The required version is recorded in
+`.nvmrc`.
+
 ## Test harness
 
 Build the lighting package, then start a simple HTTP server:

@@ -6,6 +6,9 @@ This workspace contains the reusable package and its browser validation harness:
 - Package source: `packages/lighting/src/`
 - Package build output: `packages/lighting/dist/`
 
+Local development and CI use Node.js `26.8.2`, recorded in `.nvmrc` to match
+the WebPortal environment.
+
 ## Rules
 
 1. Edit TypeScript under `packages/lighting/src/` for reusable runtime behavior.
@@ -22,6 +25,19 @@ This workspace contains the reusable package and its browser validation harness:
 - Run the programmatic package smoke test: `npm run consumer:smoke`
 - Run the packed-package consumer smoke test: `npm run consumer:packed-smoke`
 - Serve the programmatic consumer: `npm run consumer:dev`, then open `/programmatic-consumer/`
+
+## Release
+
+From `main` with a clean working tree, run:
+
+```powershell
+.\Scripts\Release.ps1
+```
+
+The script suggests the next patch version, validates the package, commits the
+version change, creates a SemVer release tag, and atomically pushes `main` and
+the tag. The tag-triggered GitHub workflow performs the final validation and
+publishes the private npm package.
 
 The repository CI workflow repeats the package build, type checks, automated
 tests, and packed-consumer validation. npm publication remains a controlled
