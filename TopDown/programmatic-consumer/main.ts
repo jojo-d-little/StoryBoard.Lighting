@@ -61,10 +61,13 @@ lightingPipeline.setRoomTexture({
 lightingPipeline.submitFrame({
   roomLighting: {
     ambient: 0.3,
+    ambientColor: "#ffffff"
+  },
+  pointLightDefaults: {
     radiusPx: 180,
-    intensity: 1.5,
-    lightColorHex: "#fff2c0",
-    lightOuterColorHex: "#d7e9ff",
+    intensityScale: 1.5,
+    color: "#fff2c0",
+    outerColor: "#d7e9ff",
     lightHeightCells: 2
   },
   pointLights: [

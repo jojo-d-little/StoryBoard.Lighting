@@ -21,13 +21,15 @@ import type {
   BlockerInput,
   LightingFrameInput,
   LightingPipelineInput,
-  NormalizedPointLight,
-  NormalizedPointLightDefaults,
-  NormalizedRoomLighting,
   PointLightInput,
   RoomGeometryInput,
   RoomLightingInput
 } from "./contracts.js";
+import type {
+  NormalizedPointLight,
+  NormalizedPointLightDefaults,
+  NormalizedRoomLighting
+} from "./internal-types.js";
 import type {
   LightingOutputTextures,
   LightingRendererHost,
@@ -315,7 +317,7 @@ export class TopDownLightingPipeline {
     const uniforms = createUniforms({
       uImageSize: { value: new Float32Array([widthPx, heightPx]), type: "vec2<f32>" },
       uAmbient: { value: 0, type: "f32" },
-      uIntensity: { value: 1, type: "f32" },
+      uAmbientColor: { value: new Float32Array([1, 1, 1]), type: "vec3<f32>" },
       uLightCount: { value: 0, type: "f32" },
       uLightPosPx: { value: this.lightPositions, type: "vec2<f32>", size: this.maxLights },
       uLightIntensity: { value: this.lightIntensities, type: "f32", size: this.maxLights },
@@ -355,7 +357,6 @@ export class TopDownLightingPipeline {
     const cellSizePx = this.roomGeometry.cellSizePx;
     const evaluatedLights = this.pointLights.map((light) => evaluatePointLight(
       light,
-      this.roomLighting,
       this.pointLightDefaults,
       timeSeconds
     ));
@@ -429,7 +430,7 @@ export class TopDownLightingPipeline {
 
     const lightUniforms = this.passes.lightFilter.resources.uniforms.uniforms as Record<string, unknown>;
     lightUniforms.uAmbient = this.roomLighting.ambient;
-    lightUniforms.uIntensity = this.roomLighting.intensity;
+    lightUniforms.uAmbientColor = this.roomLighting.ambientColor;
     lightUniforms.uLightCount = this.pointLights.length;
   }
 

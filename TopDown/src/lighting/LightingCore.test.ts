@@ -8,21 +8,16 @@ import {
   normalizePointLightInput,
   normalizeRoomGeometryInput,
   normalizeRoomLightingInput,
-  type NormalizedPointLightDefaults,
-  type NormalizedRoomLighting
 } from "./LightingCore";
-
-const roomLighting: NormalizedRoomLighting = normalizeRoomLightingInput({
-  ambient: 0.25,
-  radiusPx: 220,
-  intensity: 1.6,
-  lightColorHex: "#ffd9a6",
-  lightOuterColorHex: "#ff7f5f",
-  lightGradientExponent: 1.4,
-  lightHeightCells: 2
-});
+import type { NormalizedPointLightDefaults } from "../../packages/lighting/src/internal-types";
 
 const pointLightDefaults: NormalizedPointLightDefaults = normalizePointLightDefaultsInput({
+  radiusPx: 220,
+  intensityScale: 1.6,
+  color: "#ffd9a6",
+  outerColor: "#ff7f5f",
+  gradientExponent: 1.4,
+  lightHeightCells: 2,
   swayAmountPx: 18,
   swayHz: 0.8,
   swayDirectionDeg: 90,
@@ -107,10 +102,11 @@ describe("lighting core normalization", () => {
   });
 
   it("applies room-lighting and point-light defaults without animating ambient", () => {
-    const normalizedRoom = normalizeRoomLightingInput({ ambient: 4 });
+    const normalizedRoom = normalizeRoomLightingInput({ ambient: 4, ambientColor: "#7894c4" });
     const normalizedDefaults = normalizePointLightDefaultsInput({ flickerStyle: "flame" });
 
     expect(normalizedRoom.ambient).toBe(1);
+    expect(normalizedRoom.ambientColor).toEqual([0x78 / 255, 0x94 / 255, 0xc4 / 255]);
     expect(normalizedDefaults.flickerStyle).toBe("flame");
     expect(normalizedRoom).not.toHaveProperty("flickerStyle");
   });
@@ -137,8 +133,8 @@ describe("lighting core animation", () => {
       lightHeightCells: undefined
     });
 
-    const first = evaluatePointLight(light, roomLighting, pointLightDefaults, 2.5);
-    const second = evaluatePointLight(light, roomLighting, pointLightDefaults, 2.5);
+    const first = evaluatePointLight(light, pointLightDefaults, 2.5);
+    const second = evaluatePointLight(light, pointLightDefaults, 2.5);
 
     expect(second).toEqual(first);
     expect(first.x).not.toBe(100);
@@ -154,6 +150,7 @@ describe("lighting core animation", () => {
       x: 10,
       y: 20,
       radiusPx: 310,
+      intensityScale: 1,
       motionMode: "static",
       color: "#0000ff",
       outerColor: { r: 255, g: 0, b: 0 },
@@ -162,7 +159,7 @@ describe("lighting core animation", () => {
       flickerStyle: "swell"
     });
 
-    const evaluated = evaluatePointLight(light, roomLighting, pointLightDefaults, 1);
+    const evaluated = evaluatePointLight(light, pointLightDefaults, 1);
 
     expect(evaluated.x).toBe(10);
     expect(evaluated.y).toBe(20);
@@ -185,8 +182,8 @@ describe("lighting core animation", () => {
     });
     const swellDefaults = normalizePointLightDefaultsInput({ flickerStyle: "swell" });
     const flameDefaults = normalizePointLightDefaultsInput({ flickerStyle: "flame" });
-    const swell = evaluatePointLight(light, roomLighting, swellDefaults, 0.37);
-    const flame = evaluatePointLight(light, roomLighting, flameDefaults, 0.37);
+    const swell = evaluatePointLight(light, swellDefaults, 0.37);
+    const flame = evaluatePointLight(light, flameDefaults, 0.37);
 
     expect(swell.intensity).not.toBe(flame.intensity);
     expect(swell.intensity).toBeGreaterThanOrEqual(0.2);

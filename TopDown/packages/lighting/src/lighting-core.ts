@@ -2,50 +2,48 @@ import type {
   BlockerBoundsPx,
   BlockerInput,
   BlockerCornerStyle,
-  EvaluatedPointLight,
   FlickerStyle,
   LightMotionMode,
-  NormalizedPointLight,
-  NormalizedPointLightDefaults,
-  NormalizedRoomLighting,
   PointLightDefaultsInput,
   PointLightInput,
-  RGB01,
   RoomGeometryInput,
   RoomLightingInput
 } from "./contracts.js";
+import type {
+  EvaluatedPointLight,
+  NormalizedPointLight,
+  NormalizedPointLightDefaults,
+  NormalizedRoomLighting,
+  RGB01
+} from "./internal-types.js";
 
 export type {
   BlockerBoundsPx,
   BlockerInput,
   BlockerCornerStyle,
-  EvaluatedPointLight,
   FlickerStyle,
   LightColorInput,
   LightMotionMode,
   LightingFrameInput,
   LightingPipelineInput,
-  NormalizedPointLight,
-  NormalizedPointLightDefaults,
-  NormalizedRoomLighting,
   PointLightDefaultsInput,
   PointLightInput,
-  RGB01,
   RoomGeometryInput,
   RoomLightingInput
 } from "./contracts.js";
 
 const DEFAULT_ROOM_LIGHTING: NormalizedRoomLighting = {
   ambient: 0.35,
-  radiusPx: 180,
-  intensity: 1.5,
-  lightColorHex: "#fff2c0",
-  lightOuterColorHex: "#fff2c0",
-  lightGradientExponent: 1,
-  lightHeightCells: 2
+  ambientColor: [1, 1, 1]
 };
 
 const DEFAULT_POINT_LIGHTS: NormalizedPointLightDefaults = {
+  radiusPx: 180,
+  intensityScale: 1.5,
+  color: "#fff2c0",
+  outerColor: "#fff2c0",
+  gradientExponent: 1,
+  lightHeightCells: 2,
   swayAmountPx: 18,
   swayHz: 0.8,
   swayDirectionDeg: 90,
@@ -125,7 +123,9 @@ export function normalizePointLightInput(light: PointLightInput | unknown): Norm
     gradientExponent: source.gradientExponent == null
       ? undefined
       : Math.max(0.01, toNumberOr(source.gradientExponent, 1)),
-    intensityScale: Math.max(0, toNumberOr(source.intensityScale, 1)),
+    intensityScale: source.intensityScale == null
+      ? undefined
+      : Math.max(0, toNumberOr(source.intensityScale, 1)),
     lightHeightCells: source.lightHeightCells == null
       ? undefined
       : Math.max(0.25, toNumberOr(source.lightHeightCells, 0.25)),
@@ -193,12 +193,7 @@ export function normalizeRoomLightingInput(
   const source = (lighting ?? {}) as Partial<RoomLightingInput>;
   return {
     ambient: clampRange(toNumberOr(source.ambient, fallback.ambient), 0, 1),
-    radiusPx: clampRange(toNumberOr(source.radiusPx, fallback.radiusPx), 20, 600),
-    intensity: Math.max(0, toNumberOr(source.intensity, fallback.intensity)),
-    lightColorHex: isHexColor(source.lightColorHex) ? source.lightColorHex : fallback.lightColorHex,
-    lightOuterColorHex: isHexColor(source.lightOuterColorHex) ? source.lightOuterColorHex : fallback.lightOuterColorHex,
-    lightGradientExponent: Math.max(0.01, toNumberOr(source.lightGradientExponent, fallback.lightGradientExponent)),
-    lightHeightCells: Math.max(0.25, toNumberOr(source.lightHeightCells, fallback.lightHeightCells))
+    ambientColor: normalizeLightColor01(source.ambientColor, fallback.ambientColor)
   };
 }
 
@@ -208,6 +203,12 @@ export function normalizePointLightDefaultsInput(
 ): NormalizedPointLightDefaults {
   const source = (defaults ?? {}) as Partial<PointLightDefaultsInput>;
   return {
+    radiusPx: clampRange(toNumberOr(source.radiusPx, fallback.radiusPx), 20, 600),
+    intensityScale: Math.max(0, toNumberOr(source.intensityScale, fallback.intensityScale)),
+    color: source.color == null ? fallback.color : source.color,
+    outerColor: source.outerColor == null ? fallback.outerColor : source.outerColor,
+    gradientExponent: Math.max(0.01, toNumberOr(source.gradientExponent, fallback.gradientExponent)),
+    lightHeightCells: Math.max(0.25, toNumberOr(source.lightHeightCells, fallback.lightHeightCells)),
     swayAmountPx: Math.max(0, toNumberOr(source.swayAmountPx, fallback.swayAmountPx)),
     swayHz: Math.max(0, toNumberOr(source.swayHz, fallback.swayHz)),
     swayDirectionDeg: toNumberOr(source.swayDirectionDeg, fallback.swayDirectionDeg),
@@ -267,7 +268,6 @@ function flickerScale(light: NormalizedPointLight, defaults: NormalizedPointLigh
 
 export function evaluatePointLight(
   light: NormalizedPointLight,
-  roomLighting: NormalizedRoomLighting,
   pointLightDefaults: NormalizedPointLightDefaults,
   timeSeconds: number
 ): EvaluatedPointLight {
@@ -283,19 +283,18 @@ export function evaluatePointLight(
     y += Math.sin(radians) * amount * swing;
   }
 
-  const innerFallback = normalizeLightColor01(roomLighting.lightColorHex, [1, 1, 1]);
-  const outerFallback = normalizeLightColor01(roomLighting.lightOuterColorHex, innerFallback);
+  const innerFallback = normalizeLightColor01(pointLightDefaults.color, [1, 1, 1]);
+  const outerFallback = normalizeLightColor01(pointLightDefaults.outerColor, innerFallback);
   return {
     x,
     y,
-    radiusPx: light.radiusPx ?? roomLighting.radiusPx,
+    radiusPx: light.radiusPx ?? pointLightDefaults.radiusPx,
     directionDeg: light.directionDeg,
     coneAngleDeg: light.coneAngleDeg,
-    intensity: Math.max(0, light.intensityScale * flickerScale(light, pointLightDefaults, timeSeconds)),
-    lightHeightCells: light.lightHeightCells ?? roomLighting.lightHeightCells,
+    intensity: Math.max(0, (light.intensityScale ?? pointLightDefaults.intensityScale) * flickerScale(light, pointLightDefaults, timeSeconds)),
+    lightHeightCells: light.lightHeightCells ?? pointLightDefaults.lightHeightCells,
     color: normalizeLightColor01(light.color, innerFallback),
     outerColor: normalizeLightColor01(light.outerColor, outerFallback),
-    gradientExponent: light.gradientExponent ?? roomLighting.lightGradientExponent
+    gradientExponent: light.gradientExponent ?? pointLightDefaults.gradientExponent
   };
 }
-

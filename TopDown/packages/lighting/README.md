@@ -28,6 +28,12 @@ The extracted shaders currently target PixiJS 8's WebGL renderer. Consumers
 should request WebGL explicitly until equivalent WebGPU shader variants are
 added.
 
+Room lighting provides a scalar `ambient` level and an optional `ambientColor`
+whose default is neutral white. Point-light radius, intensity, colors, gradient,
+height, and animation settings are supplied through `pointLightDefaults` or
+overridden on individual point lights. There is no global point-light intensity
+multiplier.
+
 This package is published privately to GitHub Packages under the
 `@jojo-d-little` scope. Consumers must map that scope to
 `https://npm.pkg.github.com` and authenticate with permission to read the

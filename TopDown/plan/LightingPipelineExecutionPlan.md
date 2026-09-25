@@ -26,7 +26,8 @@ implementation order, review gates, and manual validation.
   - `LightingPipelineInput`
   - `LightingFrameInput`
   - `PointLightInput`
-  - `NormalizedPointLight`
+- Keep normalized and evaluated types internal to the package; consumers should
+  only need the authored input contracts and renderer boundary contracts.
 - Confirm room/image dimensions and cell size are established together.
 - Confirm room-space pixels remain separate from viewport/display scaling.
 - Confirm PixiJS 8 is the eventual package target.
@@ -241,7 +242,9 @@ package dependency.
 
 ### Key work
 
-- Produce the WebPortal-specific handover document.
+- Produce the WebPortal-specific handover document. Completed in
+  `plan/WebPortalLightingIntegrationHandover.md`; WebPortal integration itself
+  remains deferred to the WebPortal project.
 - Document PixiJS 8 compatibility and package installation.
 - Identify the construction point inside the WebPortal renderer.
 - Document renderer injection and asynchronous Pixi initialization.

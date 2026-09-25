@@ -53,8 +53,8 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 <label>Room ambient: <span id="ambientValue">0.35</span></label>
 <input id="ambient" type="range" min="0" max="1" step=".01" value=".35">
 
-<label>Room light baseline intensity: <span id="roomIntensityValue">1.50</span></label>
-<input id="roomIntensity" type="range" min="0" max="4" step=".05" value="1.5">
+<label>Ambient color</label>
+<input id="ambientColor" type="color" value="#ffffff">
 
 <div id="lightSelection" class="small">Editing new-light defaults</div>
 <button id="deselectLight" disabled>Deselect light / edit defaults</button>
@@ -62,8 +62,8 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 <label>Light radius: <span id="radiusValue">180</span> px</label>
 <input id="radius" type="range" min="20" max="600" value="180">
 
-<label>Light intensity scale: <span id="intensityValue">1.00</span></label>
-<input id="intensity" type="range" min="0" max="4" step=".05" value="1">
+<label>Light intensity scale: <span id="intensityValue">1.50</span></label>
+<input id="intensity" type="range" min="0" max="4" step=".05" value="1.5">
 
 <label>Point-light color</label>
 <input id="color" type="color" value="#fff2c0">
@@ -141,6 +141,8 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
 <label>Blocker shadow strength: <span id="blockerStrengthValue">1.00</span></label>
 <input id="blockerStrength" type="range" min="0" max="1" step="0.05" value="1">
 
+<label><input id="showBlockerOutlines" type="checkbox" checked> Show blocker outlines</label>
+
 <button id="clearBlockers">Clear blockers</button>
 </div>
 
@@ -204,7 +206,7 @@ const MAX_BLOCKERS = 64;
 
 const file = document.getElementById('file');
 const ambient = document.getElementById('ambient');
-const roomIntensity = document.getElementById('roomIntensity');
+const ambientColor = document.getElementById('ambientColor');
 const radius = document.getElementById('radius');
 const intensity = document.getElementById('intensity');
 const color = document.getElementById('color');
@@ -218,6 +220,7 @@ const blockerSizeY = document.getElementById('blockerSizeY');
 const blockerCornerStyle = document.getElementById('blockerCornerStyle');
 const blockerElevation = document.getElementById('blockerElevation');
 const blockerStrength = document.getElementById('blockerStrength');
+const showBlockerOutlines = document.getElementById('showBlockerOutlines');
 const blockerSelection = document.getElementById('blockerSelection');
 const deselectBlocker = document.getElementById('deselectBlocker');
 const lightHeight = document.getElementById('lightHeight');
@@ -237,15 +240,13 @@ const deselectLight = document.getElementById('deselectLight');
 const tabButtons = Array.from(document.querySelectorAll('#controlTabs .tab-btn'));
 let activeTabId = 'tabLighting';
 
-const roomLightingDefaults = {
-  radiusPx: +radius.value,
-  lightColorHex: color.value,
-  lightOuterColorHex: colorOuter.value,
-  lightGradientExponent: +lightGradientExponent.value,
-  lightHeightCells: +lightHeight.value
-};
-
 const pointLightDefaults = {
+  radiusPx: +radius.value,
+  intensityScale: +intensity.value,
+  color: color.value,
+  outerColor: colorOuter.value,
+  gradientExponent: +lightGradientExponent.value,
+  lightHeightCells: +lightHeight.value,
   swayAmountPx: +swayAmount.value,
   swayHz: +swaySpeed.value,
   swayDirectionDeg: +swayDirection.value,
@@ -255,14 +256,14 @@ const pointLightDefaults = {
 };
 
 let lightTemplate = {
-  radiusPx: roomLightingDefaults.radiusPx,
-  intensityScale: +intensity.value,
-  color: roomLightingDefaults.lightColorHex,
-  outerColor: roomLightingDefaults.lightOuterColorHex,
-  gradientExponent: roomLightingDefaults.lightGradientExponent,
+  radiusPx: pointLightDefaults.radiusPx,
+  intensityScale: pointLightDefaults.intensityScale,
+  color: pointLightDefaults.color,
+  outerColor: pointLightDefaults.outerColor,
+  gradientExponent: pointLightDefaults.gradientExponent,
   directionDeg: +lightDirection.value,
   coneAngleDeg: +lightConeAngle.value,
-  lightHeightCells: roomLightingDefaults.lightHeightCells,
+  lightHeightCells: pointLightDefaults.lightHeightCells,
   motionMode: lightMotionMode.value,
   swayAmountPx: pointLightDefaults.swayAmountPx,
   swayHz: pointLightDefaults.swayHz,
@@ -358,11 +359,12 @@ function updateLightSelectionUi() {
 
 function updateTemplateDefaults(values) {
   lightTemplate = { ...lightTemplate, ...values };
-  roomLightingDefaults.radiusPx = values.radiusPx;
-  roomLightingDefaults.lightColorHex = values.color;
-  roomLightingDefaults.lightOuterColorHex = values.outerColor;
-  roomLightingDefaults.lightGradientExponent = values.gradientExponent;
-  roomLightingDefaults.lightHeightCells = values.lightHeightCells;
+  pointLightDefaults.radiusPx = values.radiusPx;
+  pointLightDefaults.intensityScale = values.intensityScale;
+  pointLightDefaults.color = values.color;
+  pointLightDefaults.outerColor = values.outerColor;
+  pointLightDefaults.gradientExponent = values.gradientExponent;
+  pointLightDefaults.lightHeightCells = values.lightHeightCells;
   pointLightDefaults.swayAmountPx = values.swayAmountPx;
   pointLightDefaults.swayHz = values.swayHz;
   pointLightDefaults.swayDirectionDeg = values.swayDirectionDeg;
@@ -491,7 +493,7 @@ function rebuildBlockerOverlay() {
   if (!blockerOverlay) return;
 
   blockerOverlay.clear();
-  blockerOverlay.lineStyle(1, 0xff6b6b, 0.95);
+  blockerOverlay.visible = showBlockerOutlines.checked;
 
   const cellPx = +cellSize.value;
   for (let i = 0; i < blockers.length; i++) {
@@ -501,10 +503,11 @@ function rebuildBlockerOverlay() {
     const heightPx = Math.max(1, bounds.heightPx);
     if (b.cornerStyle === 'round') {
       const cornerRadiusPx = Math.min(cellPx * 0.5, widthPx * 0.5, heightPx * 0.5);
-      blockerOverlay.drawRoundedRect(bounds.leftPx, bounds.topPx, widthPx, heightPx, cornerRadiusPx);
+      blockerOverlay.roundRect(bounds.leftPx, bounds.topPx, widthPx, heightPx, cornerRadiusPx);
     } else {
-      blockerOverlay.drawRect(bounds.leftPx, bounds.topPx, widthPx, heightPx);
+      blockerOverlay.rect(bounds.leftPx, bounds.topPx, widthPx, heightPx);
     }
+    blockerOverlay.stroke({ width: 1, color: 0xff6b6b, alpha: 0.95 });
   }
 }
 
@@ -532,7 +535,6 @@ function applyDisplayMode() {
 
 function updateLabels() {
   document.getElementById('ambientValue').textContent = (+ambient.value).toFixed(2);
-  document.getElementById('roomIntensityValue').textContent = (+roomIntensity.value).toFixed(2);
   document.getElementById('radiusValue').textContent = radius.value;
   document.getElementById('intensityValue').textContent = (+intensity.value).toFixed(2);
   document.getElementById('lightGradientExponentValue').textContent = (+lightGradientExponent.value).toFixed(2);
@@ -622,6 +624,7 @@ function updateStatus() {
     `Point lights: ${lights.length}${clipped}<br>` +
     `Animated lights: ${animatedCount}<br>` +
     `Blockers: ${blockers.length}${blockerClipped}<br>` +
+    `Blocker outlines: ${showBlockerOutlines.checked ? 'On' : 'Off'}<br>` +
     `Tool: ${toolName}<br>` +
     `Shadow soften: ${soften}<br>` +
     `Preview: ${previewName}<br>` +
@@ -771,12 +774,7 @@ function submitHarnessFrame() {
   lightingPipeline.submitFrame({
     roomLighting: {
       ambient: +ambient.value,
-      radiusPx: roomLightingDefaults.radiusPx,
-      intensity: +roomIntensity.value,
-      lightColorHex: roomLightingDefaults.lightColorHex,
-      lightOuterColorHex: roomLightingDefaults.lightOuterColorHex,
-      lightGradientExponent: roomLightingDefaults.lightGradientExponent,
-      lightHeightCells: roomLightingDefaults.lightHeightCells
+      ambientColor: ambientColor.value
     },
     pointLightDefaults,
     pipeline: {
@@ -807,8 +805,8 @@ composeMode.addEventListener('change', function() {
 ambient.addEventListener('input', function() {
   updateLabels(); submitHarnessFrame();
 });
-roomIntensity.addEventListener('input', function() {
-  updateLabels(); submitHarnessFrame();
+ambientColor.addEventListener('input', function() {
+  submitHarnessFrame();
 });
 radius.addEventListener('input', handleLightEditorChange);
 intensity.addEventListener('input', handleLightEditorChange);
@@ -851,6 +849,10 @@ blockerElevation.addEventListener('input', function() {
 });
 blockerStrength.addEventListener('input', function() {
   handleBlockerEditorChange();
+});
+showBlockerOutlines.addEventListener('change', function() {
+  rebuildBlockerOverlay();
+  updateStatus();
 });
 deselectBlocker.addEventListener('click', deselectCurrentBlocker);
 shadowSoften.addEventListener('input', function() {

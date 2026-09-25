@@ -81,7 +81,7 @@ export function createLightFragment(maxLights: number): string {
 
     uniform vec2 uImageSize;
     uniform float uAmbient;
-    uniform float uIntensity;
+    uniform vec3 uAmbientColor;
     uniform float uLightCount;
     uniform vec2 uLightPosPx[${maxLights}];
     uniform float uLightIntensity[${maxLights}];
@@ -137,7 +137,7 @@ export function createLightFragment(maxLights: number): string {
 
     void main(void) {
       vec2 pixel = gl_FragCoord.xy;
-      vec3 illumination = vec3(uAmbient);
+      vec3 illumination = uAmbientColor * uAmbient;
 
       for (int i = 0; i < ${maxLights}; i++) {
         if (float(i) < uLightCount) {
@@ -158,8 +158,7 @@ export function createLightFragment(maxLights: number): string {
 
           float gradientT = pow(clamp(distanceRatio, 0.0, 1.0), max(uLightGradientExp[i], 0.0001));
           vec3 gradientColor = mix(uLightInnerColor[i].rgb, uLightOuterColor[i], gradientT);
-          float animatedIntensity = uIntensity * uLightIntensity[i];
-          illumination += gradientColor * (animatedIntensity * profile(distanceRatio) * directionalMask * visibility);
+          illumination += gradientColor * (uLightIntensity[i] * profile(distanceRatio) * directionalMask * visibility);
         }
       }
 

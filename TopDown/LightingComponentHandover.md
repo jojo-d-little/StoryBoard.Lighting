@@ -1,5 +1,11 @@
 # Lighting Component Handover
 
+> **Superseded draft:** This document describes an earlier prototype contract.
+> Use [WebPortalLightingIntegrationHandover.md](plan/WebPortalLightingIntegrationHandover.md)
+> for the current package API. In particular, point-light radius, intensity,
+> color, gradient, and height defaults now belong to `PointLightDefaultsInput`,
+> and there is no global point-light intensity multiplier.
+
 This document describes how to integrate and operate the lighting component outside the test harness source code.
 
 > Status: this is an earlier handover draft. Phase 3 has moved the runtime
