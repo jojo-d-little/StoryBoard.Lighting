@@ -2,26 +2,30 @@
 
 This document describes how to integrate and operate the lighting component outside the test harness source code.
 
+> Status: this is an earlier handover draft. Phase 3 has moved the runtime
+> implementation into `packages/lighting`; the final WebPortal handover is
+> intentionally scheduled for Phase 7.
+
 ## Purpose
 
-`TopDownLightingPipelineComponent` is the boundary between:
+`TopDownLightingPipeline` is the boundary between:
 
 - Engine/game state (`pointLights`, `blockers`, room globals)
-- Rendering pipeline execution (`rebuildLightingMap`, compose/preview output)
+- Rendering pipeline execution (occlusion, light-map, and composition outputs)
 
 It exists so gameplay code can hand off structured data without touching shader/pipeline internals.
 
 ## Source Of Truth
 
-- Authoring source: `TopDownLightingPipelineComponent.ts`
-- Runtime artifact used by browser harness: `dist/TopDownLightingPipelineComponent.js` (generated)
+- Authoring source: `packages/lighting/src/TopDownLightingPipeline.ts`
+- Runtime artifact: `packages/lighting/dist/` (generated)
 - Harness script: `TopDownLightingTestHarness.html`
 
 Do not hand-edit files under `dist/`.
 
 ## Build And Test Workflow
 
-1. Edit `TopDownLightingPipelineComponent.ts`
+1. Edit package TypeScript under `packages/lighting/src/`
 2. Run `npm run build` (or `npm run dev` for watch mode)
 3. Refresh `TopDownLightingTestHarness.html`
 4. Validate visual behavior and API contract

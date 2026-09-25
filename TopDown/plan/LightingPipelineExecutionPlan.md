@@ -102,6 +102,10 @@ ownership, and lifecycle contract.
 
 ## Phase 3: Extract the Rendering Pipeline
 
+Status: in progress. The package now owns the extracted shaders, render
+targets, four rendering passes, explicit room geometry, and host-supplied
+frame time. The harness is being converted to consume those outputs directly.
+
 ### Key work
 
 - Move shader source out of the HTML harness.
@@ -137,6 +141,10 @@ shadow, and animation differences are understood and accepted.
 
 ## Phase 4: Convert the HTML into a Consumer Harness
 
+Status: complete. The HTML harness now consumes the package boundary directly;
+the legacy component bridge, inline shader logic, pass execution, and render
+target allocation have been removed. Manual harness validation has passed.
+
 ### Key work
 
 - Keep image loading and UI controls in the harness.
@@ -164,10 +172,15 @@ than a second implementation of the pipeline.
 
 ## Phase 5: Add the Programmatic Consumer
 
+Status: in progress. The code-only consumer and packed-package smoke path are
+now in place; browser validation remains the next manual check.
+
 ### Key work
 
 - Create a minimal consumer with no DOM controls.
 - Supply room texture, `RoomGeometryInput`, frame data, and time in code.
+- Consume the package through its built package boundary rather than importing
+  harness code or internal source modules.
 - Display or inspect the composed output.
 - Verify room replacement and resource reallocation.
 - Verify repeated resize behavior.
@@ -179,16 +192,30 @@ than a second implementation of the pipeline.
 Pause when the programmatic consumer demonstrates that the component no longer
 depends on the original harness.
 
-## Phase 6: Package Validation and Delivery
+## Phase 6: Package Validation, CI, and npm Delivery
+
+Status: in progress. The repository CI validation workflow and controlled npm
+release workflow are in place. The package identity is
+`@jojo-d-little/storyboard-lighting`; the remaining work is review, manual
+consumer validation, and authenticated registry execution.
 
 ### Key work
 
 - Build ESM JavaScript and declaration files.
-- Run `npm pack --dry-run`.
-- Install the packed artifact into the programmatic consumer.
+- Create the publishable package artifact with `npm pack`.
+- Install that packed artifact into the Phase 5 programmatic consumer.
 - Confirm PixiJS is supplied by the consumer and is not duplicated.
 - Confirm package contents exclude the HTML harness and local tooling.
 - Document supported PixiJS versions and browser/runtime assumptions.
+- Add a CI workflow that installs from the lockfile, builds, typechecks, runs
+  automated tests, packs the package, and runs the programmatic consumer smoke
+  test against the packed artifact.
+- Add a controlled release workflow that publishes only an already-validated
+  package version to the private GitHub Packages npm registry.
+- Use the `@jojo-d-little/storyboard-lighting` scope and the same private
+  package model as the existing contracts package.
+- Confirm versioning, GitHub Actions package permissions, and whether releases
+  are tag-driven or manually approved.
 
 ### Validation
 
@@ -196,8 +223,21 @@ depends on the original harness.
 - Packed artifact imports successfully.
 - Public types resolve in a consuming TypeScript project.
 - Programmatic consumer runs without DOM controls or CDN scripts.
+- CI reproduces the local build, test, pack, and consumer checks.
+- The published GitHub Packages version can be installed by a clean,
+  authenticated consumer project.
+
+### Stop gate G — package release approval
+
+Pause until the packed artifact has passed the programmatic consumer checks and
+the CI/release workflow is reviewed. Publish the package only after this gate.
 
 ## Phase 7: WebPortal Integration Handover
+
+Prerequisite: an approved package version is published and installable from
+npm. This phase documents how WebPortal should consume that released version;
+it does not substitute a workspace link or unpublished local source for the
+package dependency.
 
 ### Key work
 
@@ -213,7 +253,7 @@ depends on the original harness.
 - Document texture ownership, GPU limits, quality settings, and failure paths.
 - Include a minimal code example and integration checklist.
 
-### Stop gate G — handover approval
+### Stop gate H — handover approval
 
 Pause for review of the handover document before any WebPortal integration work
 begins.
@@ -230,5 +270,6 @@ begins.
 - Room geometry and viewport presentation remain separate.
 - Resize, room replacement, and disposal are explicit and tested.
 - Manual visual parity checks are complete.
-- The packed npm artifact is consumable.
+- The packed artifact is consumable and the released private GitHub Packages
+  version is installable by an authenticated consumer.
 - The WebPortal handover document is complete and reviewed.

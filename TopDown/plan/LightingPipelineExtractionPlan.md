@@ -2,21 +2,28 @@
 
 ## Goal
 
-Convert the current Pixi lighting test harness into a reusable `TopDownLightingPipelineComponent` that can be integrated into a Pixi-based game engine without depending on HTML controls, harness globals, or harness-specific display logic.
+Convert the current Pixi lighting test harness into a reusable
+`TopDownLightingPipeline` package API that can be integrated into a Pixi-based
+game engine without depending on HTML controls, harness globals, or
+harness-specific display logic.
 
 The final component should own lighting state, animation evaluation, render targets, shader passes, output textures, and resource cleanup. The test harness should become a thin adapter that supplies inputs and displays outputs.
 
 ## Target Integration Shape
 
 ```ts
-const lighting = new TopDownLightingPipelineComponent({
+const lighting = new TopDownLightingPipeline({
   renderer: app.renderer
 });
 
-lighting.setRoomTexture(roomTexture, {
-  widthPx: roomWidth,
-  heightPx: roomHeight,
-  cellSizePx: 40
+lighting.setRoomTexture({
+  texture: roomTexture,
+  geometry: {
+    widthPx: roomWidth,
+    heightPx: roomHeight,
+    cellSizePx: 40
+  },
+  ownership: "borrowed"
 });
 
 lighting.submitFrame(worldLightingState);

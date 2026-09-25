@@ -82,7 +82,7 @@ If criteria are met, normals become Stage 2 enhancement (light response), not a 
 Convert this test harness into reusable runtime components.
 
 Target architecture:
-- TopDownLightingPipelineComponent (orchestrator)
+- TopDownLightingPipeline (orchestrator)
 - Pass interfaces (init, resize, execute, dispose)
 - Resource registry (render textures, formats, dimensions)
 - Debug view router (show any stage output)

@@ -1,0 +1,45 @@
+name: Lighting package validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: TopDown
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: TopDown/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build:package
+
+      - name: Typecheck package and pure modules
+        run: |
+          npm run typecheck
+          npm run typecheck:core
+          npx tsc --target ES2020 --module ESNext --moduleResolution Bundler --lib ES2020,DOM --strict --skipLibCheck --noEmit programmatic-consumer/main.ts
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Validate packed consumer
+        run: npm run consumer:packed-smoke
