@@ -63,8 +63,12 @@ export interface PointLightInput {
 /**
  * Authored rectangular occlusion footprint in room-grid coordinates.
  *
- * The blocker is aligned to the room grid. Its top-left occupied cell is
- * `(cellX, cellY)` and its footprint extends along the X and Y cell axes.
+ * The blocker is aligned to the room grid. `cellX` and `cellY` are integer
+ * grid indices, not pixel coordinates: they identify the top-left occupied
+ * room cell relative to room origin `(0, 0)`. The pixel origin of that cell
+ * is `(cellX * cellSizePx, cellY * cellSizePx)`, and the footprint extends
+ * along the X and Y cell axes. For example, with a 40px cell size, cell
+ * `(3, 2)` begins at room pixel `(120, 80)`.
  */
 export interface BlockerInput {
   /** Integer X coordinate of the top-left occupied room cell. */
