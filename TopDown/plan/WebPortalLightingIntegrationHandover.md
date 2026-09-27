@@ -75,7 +75,8 @@ const lighting = new TopDownLightingPipeline({
 
 The maximum counts are fixed-size shader capacities. Inputs beyond those
 limits are truncated, so WebPortal should choose capacities appropriate for
-its scenes.
+its scenes. `maxBlockers` cannot exceed 255 because the occlusion texture
+encodes a blocker identity in one 8-bit channel.
 
 ## Supply the room surface
 

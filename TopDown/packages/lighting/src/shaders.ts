@@ -44,7 +44,7 @@ export function createOcclusionFragment(maxBlockers: number): string {
       vec2 pixel = gl_FragCoord.xy;
       float maxHeightCells = 0.0;
       float maxStrength = 0.0;
-      float occupied = 0.0;
+      float blockerId = 0.0;
 
       for (int i = 0; i < ${maxBlockers}; i++) {
         if (float(i) < uBlockerCount) {
@@ -59,18 +59,19 @@ export function createOcclusionFragment(maxBlockers: number): string {
           bool inside = roundedBoxDistance <= 0.0;
 
           if (inside) {
-            occupied = 1.0;
             float heightCells = uBlockerElevationCells[i];
             if (heightCells >= maxHeightCells) {
               maxHeightCells = heightCells;
               maxStrength = uBlockerStrength[i];
+              // Reserve zero for empty pixels; the blue channel stores an 8-bit blocker ID.
+              blockerId = (float(i) + 1.0) / 255.0;
             }
           }
         }
       }
 
       float encodedHeight = clamp(maxHeightCells / max(uHeightEncodeScale, 0.0001), 0.0, 1.0);
-      finalColor = vec4(encodedHeight, clamp(maxStrength, 0.0, 1.0), occupied, 1.0);
+      finalColor = vec4(encodedHeight, clamp(maxStrength, 0.0, 1.0), blockerId, 1.0);
     }
   `;
 }
@@ -97,7 +98,16 @@ export function createLightFragment(maxLights: number): string {
 
     out vec4 finalColor;
 
-    float rayShadowAmountByMap(vec2 lightPos, vec2 pixelPos, float lightHeightCells) {
+    vec4 rawOcclusionAt(vec2 pixelPos) {
+      vec2 texel = clamp(floor(pixelPos), vec2(0.0), uImageSize - vec2(1.0));
+      return texture(uOcclusionOccupancyMap, (texel + vec2(0.5)) / uImageSize);
+    }
+
+    float blockerIdAt(vec2 pixelPos) {
+      return floor(rawOcclusionAt(pixelPos).b * 255.0 + 0.5);
+    }
+
+    float rayShadowAmountByMap(vec2 lightPos, vec2 pixelPos, float lightHeightCells, float receiverBlockerId) {
       vec2 ray = pixelPos - lightPos;
       float rayLen = length(ray);
       if (rayLen <= 0.0001) return 0.0;
@@ -109,7 +119,12 @@ export function createLightFragment(maxLights: number): string {
         float rayFraction = float(s) / float(STEPS);
         vec2 samplePos = lightPos + direction * (rayLen * rayFraction);
         vec2 uv = clamp(samplePos / uImageSize, 0.0, 1.0);
-        vec4 occlusion = texture(uOcclusionMap, uv);
+        // Use exact blocker identities for object receivers. The softened map can
+        // bleed the receiver's own blocker into nearby empty pixels.
+        vec4 occlusion = receiverBlockerId > 0.0
+          ? rawOcclusionAt(samplePos)
+          : texture(uOcclusionMap, uv);
+        if (receiverBlockerId > 0.0 && floor(occlusion.b * 255.0 + 0.5) == receiverBlockerId) continue;
         float blockerHeightCells = occlusion.r * uHeightEncodeScale;
         float blockerStrength = occlusion.g;
         float rayHeightAtSample = lightHeightCells * (1.0 - rayFraction);
@@ -138,6 +153,7 @@ export function createLightFragment(maxLights: number): string {
     void main(void) {
       vec2 pixel = gl_FragCoord.xy;
       vec3 illumination = uAmbientColor * uAmbient;
+      float receiverBlockerId = blockerIdAt(pixel);
 
       for (int i = 0; i < ${maxLights}; i++) {
         if (float(i) < uLightCount) {
@@ -149,11 +165,7 @@ export function createLightFragment(maxLights: number): string {
           vec2 toPixelDir = distancePx > 0.0001 ? delta / distancePx : vec2(1.0, 0.0);
           float directionalMask = coneFactor(uLightDir[i], uLightConeDeg[i], toPixelDir);
 
-          vec2 targetUv = clamp(pixel / uImageSize, 0.0, 1.0);
-          float targetIsBlocker = texture(uOcclusionOccupancyMap, targetUv).b;
-          float shadowAmount = targetIsBlocker > 0.5
-            ? 0.0
-            : rayShadowAmountByMap(lightPos, pixel, uLightHeightCells[i]);
+          float shadowAmount = rayShadowAmountByMap(lightPos, pixel, uLightHeightCells[i], receiverBlockerId);
           float visibility = 1.0 - clamp(shadowAmount, 0.0, 1.0);
 
           float gradientT = pow(clamp(distanceRatio, 0.0, 1.0), max(uLightGradientExp[i], 0.0001));

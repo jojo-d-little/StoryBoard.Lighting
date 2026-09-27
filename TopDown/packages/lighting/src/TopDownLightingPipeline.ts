@@ -110,6 +110,9 @@ export class TopDownLightingPipeline {
     this.renderer = options.renderer;
     this.maxLights = Math.max(1, Math.floor(options.maxLights ?? 64));
     this.maxBlockers = Math.max(1, Math.floor(options.maxBlockers ?? 64));
+    if (this.maxBlockers > 255) {
+      throw new RangeError("TopDownLightingPipeline supports at most 255 blockers because blocker identities use one texture channel.");
+    }
     this.lightPositions = new Float32Array(this.maxLights * 2);
     this.lightIntensities = new Float32Array(this.maxLights);
     this.lightInnerColors = new Float32Array(this.maxLights * 4);

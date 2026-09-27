@@ -91,8 +91,11 @@ and call:
 - `strength`: [0, 1]
 
 Blocker occupancy is a lit receiving surface in the top-down model. A blocker
-casts its shadow onto room pixels behind it relative to the light, but its own
-occupied footprint is not self-shadowed.
+casts its shadow onto room pixels behind it relative to the light. Pixels inside
+its footprint ignore that blocker's own shadow but can receive shadows from
+other blockers. Where blocker footprints overlap, the occlusion texture retains
+only the effective blocker at each pixel. Shadows received by blocker pixels use
+the hard occlusion texture so blur cannot reintroduce self-shadowing at edges.
 
 ### Room lighting and pipeline
 
