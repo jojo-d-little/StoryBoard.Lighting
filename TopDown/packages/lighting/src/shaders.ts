@@ -103,11 +103,13 @@ export function createLightFragment(maxLights: number): string {
       return texture(uOcclusionOccupancyMap, (texel + vec2(0.5)) / uImageSize);
     }
 
-    float blockerIdAt(vec2 pixelPos) {
-      return floor(rawOcclusionAt(pixelPos).b * 255.0 + 0.5);
-    }
-
-    float rayShadowAmountByMap(vec2 lightPos, vec2 pixelPos, float lightHeightCells, float receiverBlockerId) {
+    float rayShadowAmountByMap(
+      vec2 lightPos,
+      vec2 pixelPos,
+      float lightHeightCells,
+      float receiverHeightCells,
+      float receiverBlockerId
+    ) {
       vec2 ray = pixelPos - lightPos;
       float rayLen = length(ray);
       if (rayLen <= 0.0001) return 0.0;
@@ -127,7 +129,7 @@ export function createLightFragment(maxLights: number): string {
         if (receiverBlockerId > 0.0 && floor(occlusion.b * 255.0 + 0.5) == receiverBlockerId) continue;
         float blockerHeightCells = occlusion.r * uHeightEncodeScale;
         float blockerStrength = occlusion.g;
-        float rayHeightAtSample = lightHeightCells * (1.0 - rayFraction);
+        float rayHeightAtSample = mix(lightHeightCells, receiverHeightCells, rayFraction);
 
         if (blockerHeightCells >= rayHeightAtSample && blockerHeightCells > 0.0) {
           strongestShadow = max(strongestShadow, blockerStrength);
@@ -153,7 +155,11 @@ export function createLightFragment(maxLights: number): string {
     void main(void) {
       vec2 pixel = gl_FragCoord.xy;
       vec3 illumination = uAmbientColor * uAmbient;
-      float receiverBlockerId = blockerIdAt(pixel);
+      vec4 receiverOcclusion = rawOcclusionAt(pixel);
+      float receiverBlockerId = floor(receiverOcclusion.b * 255.0 + 0.5);
+      float receiverHeightCells = receiverBlockerId > 0.0
+        ? receiverOcclusion.r * uHeightEncodeScale
+        : 0.0;
 
       for (int i = 0; i < ${maxLights}; i++) {
         if (float(i) < uLightCount) {
@@ -165,7 +171,9 @@ export function createLightFragment(maxLights: number): string {
           vec2 toPixelDir = distancePx > 0.0001 ? delta / distancePx : vec2(1.0, 0.0);
           float directionalMask = coneFactor(uLightDir[i], uLightConeDeg[i], toPixelDir);
 
-          float shadowAmount = rayShadowAmountByMap(lightPos, pixel, uLightHeightCells[i], receiverBlockerId);
+          float shadowAmount = rayShadowAmountByMap(
+            lightPos, pixel, uLightHeightCells[i], receiverHeightCells, receiverBlockerId
+          );
           float visibility = 1.0 - clamp(shadowAmount, 0.0, 1.0);
 
           float gradientT = pow(clamp(distanceRatio, 0.0, 1.0), max(uLightGradientExp[i], 0.0001));

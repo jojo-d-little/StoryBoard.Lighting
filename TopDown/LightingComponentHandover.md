@@ -96,6 +96,8 @@ its footprint ignore that blocker's own shadow but can receive shadows from
 other blockers. Where blocker footprints overlap, the occlusion texture retains
 only the effective blocker at each pixel. Shadows received by blocker pixels use
 the hard occlusion texture so blur cannot reintroduce self-shadowing at edges.
+Shadow rays end at the receiving blocker's `elevationCells` across its whole
+footprint; rays to room pixels end at floor height zero.
 
 ### Room lighting and pipeline
 
