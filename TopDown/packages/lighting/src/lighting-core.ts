@@ -142,9 +142,13 @@ export function normalizePointLightInput(light: PointLightInput | unknown): Norm
 
 export function normalizeBlockerInput(blocker: BlockerInput | unknown): Required<BlockerInput> {
   const source = (blocker ?? {}) as Partial<BlockerInput>;
+  if (typeof source.xPx !== "number" || !Number.isFinite(source.xPx)
+    || typeof source.yPx !== "number" || !Number.isFinite(source.yPx)) {
+    throw new TypeError("BlockerInput requires finite xPx and yPx room-image pixel coordinates.");
+  }
   return {
-    cellX: Math.floor(toNumberOr(source.cellX, 0)),
-    cellY: Math.floor(toNumberOr(source.cellY, 0)),
+    xPx: source.xPx,
+    yPx: source.yPx,
     sizeXCells: Math.max(1, Math.floor(toNumberOr(source.sizeXCells, 1))),
     sizeYCells: Math.max(1, Math.floor(toNumberOr(source.sizeYCells, 1))),
     cornerStyle: normalizeBlockerCornerStyle(source.cornerStyle),
@@ -154,17 +158,16 @@ export function normalizeBlockerInput(blocker: BlockerInput | unknown): Required
 }
 
 /**
- * Converts a normalized blocker from top-left room-cell coordinates into
- * pixel-space bounds. The same derived bounds should drive overlays and GPU
- * blocker centers so they cannot drift apart.
+ * Derives pixel-space bounds from the blocker's top-left room-image position
+ * and cell-sized footprint. The same bounds drive overlays and GPU centers.
  */
 export function getBlockerBoundsPx(
   blocker: Required<BlockerInput>,
   cellSizePx: number
 ): BlockerBoundsPx {
   const safeCellSizePx = Math.max(1, toNumberOr(cellSizePx, 1));
-  const leftPx = blocker.cellX * safeCellSizePx;
-  const topPx = blocker.cellY * safeCellSizePx;
+  const leftPx = blocker.xPx;
+  const topPx = blocker.yPx;
   const widthPx = blocker.sizeXCells * safeCellSizePx;
   const heightPx = blocker.sizeYCells * safeCellSizePx;
   return {

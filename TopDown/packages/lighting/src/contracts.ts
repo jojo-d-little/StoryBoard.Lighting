@@ -61,23 +61,21 @@ export interface PointLightInput {
 }
 
 /**
- * Authored rectangular occlusion footprint in room-grid coordinates.
+ * Authored rectangular occlusion footprint in room-image coordinates.
  *
- * The blocker is aligned to the room grid. `cellX` and `cellY` are integer
- * grid indices, not pixel coordinates: they identify the top-left occupied
- * room cell relative to room origin `(0, 0)`. The pixel origin of that cell
- * is `(cellX * cellSizePx, cellY * cellSizePx)`, and the footprint extends
- * along the X and Y cell axes. For example, with a 40px cell size, cell
- * `(3, 2)` begins at room pixel `(120, 80)`.
+ * `xPx` and `yPx` locate the top-left of the footprint in room-image pixels.
+ * They may be fractional while an object moves between grid cells. Footprint
+ * width and height remain whole room-cell counts. For example, with a 40px
+ * cell size, a blocker at rest in cell `(3, 2)` has `(xPx, yPx) = (120, 80)`.
  */
 export interface BlockerInput {
-  /** Integer X coordinate of the top-left occupied room cell. */
-  cellX: number;
-  /** Integer Y coordinate of the top-left occupied room cell. */
-  cellY: number;
-  /** Number of occupied room cells along the X axis; defaults to `1`. */
+  /** Top-left X coordinate in room-image pixels; may be fractional. */
+  xPx: number;
+  /** Top-left Y coordinate in room-image pixels; may be fractional. */
+  yPx: number;
+  /** Footprint width in whole cell units; defaults to `1`. */
   sizeXCells?: number;
-  /** Number of occupied room cells along the Y axis; defaults to `1`. */
+  /** Footprint height in whole cell units; defaults to `1`. */
   sizeYCells?: number;
   /** Edge treatment inside the footprint; defaults to hard square corners. */
   cornerStyle?: BlockerCornerStyle;
@@ -87,7 +85,7 @@ export interface BlockerInput {
   strength?: number;
 }
 
-/** Pixel-space bounds derived from a room-cell blocker by `getBlockerBoundsPx()`. */
+/** Pixel-space bounds derived from a blocker by `getBlockerBoundsPx()`. */
 export interface BlockerBoundsPx {
   /** Left edge in room-space pixels. */
   leftPx: number;

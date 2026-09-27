@@ -83,7 +83,7 @@ and call:
 
 ### Blockers
 
-- `cellX`, `cellY`: integer room-cell coordinates for the blocker’s top-left occupied cell
+- `xPx`, `yPx`: top-left footprint position in room-image pixels; fractional values are allowed during movement
 - `sizeXCells`: occupied footprint count along room X
 - `sizeYCells`: occupied footprint count along room Y
 - `cornerStyle`: `square` for hard rectangular corners or `round` for rounded corners within the same bounds
@@ -207,8 +207,8 @@ const frame = {
   ],
   blockers: [
     {
-      cellX: 8,
-      cellY: 6,
+      xPx: 320,
+      yPx: 240,
       sizeXCells: 1,
       sizeYCells: 3,
       cornerStyle: 'square',

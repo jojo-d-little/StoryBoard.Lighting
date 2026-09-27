@@ -43,9 +43,16 @@ The lighting pipeline uses room coordinates, not viewport coordinates:
 - `widthPx` and `heightPx` are the internal room/image dimensions.
 - `cellSizePx` is the room grid-cell size in those same pixels.
 - Point-light `x` and `y` values are room-space pixels.
-- Blocker `cellX` and `cellY` are integer room-cell coordinates for the
-  top-left occupied cell.
-- Blocker `sizeXCells` and `sizeYCells` describe the rectangular footprint.
+- Blocker `xPx` and `yPx` are the top-left of the footprint in room-image
+  pixels. Send the rendered position each frame during interpolated movement.
+- Blocker `sizeXCells` and `sizeYCells` describe the rectangular footprint
+  in whole cells.
+
+At rest in cell `(cellX, cellY)`, submit `xPx = cellX * cellSizePx` and
+`yPx = cellY * cellSizePx`. While the object glides, submit the same visual
+footprint position used to render its sprite on each visual frame. Fractional
+pixel values are valid. `cellX` and `cellY` are no longer accepted by the
+lighting package; a missing pixel position raises an error.
 
 Viewport scaling, letterboxing, camera placement, and browser canvas offsets
 must not be included in these values.
@@ -156,8 +163,8 @@ app.ticker.add((ticker) => {
     ],
     blockers: [
       {
-        cellX: 4,
-        cellY: 3,
+        xPx: 160,
+        yPx: 120,
         sizeXCells: 2,
         sizeYCells: 2,
         cornerStyle: "square",

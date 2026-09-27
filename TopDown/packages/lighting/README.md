@@ -34,6 +34,11 @@ height, and animation settings are supplied through `pointLightDefaults` or
 overridden on individual point lights. There is no global point-light intensity
 multiplier.
 
+Blockers require `xPx` and `yPx` for the top-left of their footprint in
+room-image pixels. Positions may be fractional during movement; `sizeXCells`
+and `sizeYCells` remain whole-cell dimensions. The former `cellX` and `cellY`
+position fields are no longer accepted.
+
 This package is published privately to GitHub Packages under the
 `@jojo-d-little` scope. Consumers must map that scope to
 `https://npm.pkg.github.com` and authenticate with permission to read the

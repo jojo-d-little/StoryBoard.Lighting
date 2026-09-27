@@ -425,17 +425,16 @@ tabButtons.forEach(function(btn) {
   });
 });
 
-function upsertBlocker(cellX, cellY, sizeXCells, sizeYCells, cornerStyle, elevationCells, strength) {
-  // [CELL] cellX/cellY are the top-left occupied room cell.
-  // Footprint sizes are whole room-cell counts.
+function upsertBlocker(xPx, yPx, sizeXCells, sizeYCells, cornerStyle, elevationCells, strength) {
+  // The editor snaps placement, then submits room-image pixel coordinates.
   const normalizedSizeX = Math.max(1, Math.floor(sizeXCells));
   const normalizedSizeY = Math.max(1, Math.floor(sizeYCells));
   const index = blockers.findIndex(function(b) {
-    return b.cellX === cellX && b.cellY === cellY;
+    return b.xPx === xPx && b.yPx === yPx;
   });
   const next = {
-    cellX: cellX,
-    cellY: cellY,
+    xPx: xPx,
+    yPx: yPx,
     sizeXCells: normalizedSizeX,
     sizeYCells: normalizedSizeY,
     cornerStyle: cornerStyle === 'round' ? 'round' : 'square',
@@ -695,11 +694,11 @@ function setupSceneFromImage(img, geometry) {
 
       if (activeTabId === 'tabBlockers') {
         const cellPx = +cellSize.value;
-        const cellX = Math.floor(local.x / cellPx);
-        const cellY = Math.floor(local.y / cellPx);
+        const xPx = Math.floor(local.x / cellPx) * cellPx;
+        const yPx = Math.floor(local.y / cellPx) * cellPx;
         upsertBlocker(
-          cellX,
-          cellY,
+          xPx,
+          yPx,
           +blockerSizeX.value,
           +blockerSizeY.value,
           blockerCornerStyle.value,

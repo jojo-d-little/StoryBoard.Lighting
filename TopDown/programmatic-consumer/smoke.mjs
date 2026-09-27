@@ -4,7 +4,7 @@ const pipeline = new TopDownLightingPipeline({ renderer: {} });
 pipeline.submitFrame({
   roomLighting: { ambient: 0.25 },
   pointLights: [{ x: 10, y: 20 }],
-  blockers: [{ cellX: 0, cellY: 0 }]
+  blockers: [{ xPx: 0, yPx: 0 }]
 });
 
 if (pipeline.getOutputs() !== null) {

@@ -47,18 +47,18 @@ describe("lighting core normalization", () => {
     expect(light.flickerStyle).toBeUndefined();
   });
 
-  it("normalizes blockers to bounded grid-space values", () => {
+  it("preserves fractional blocker positions while normalizing cell-sized footprints", () => {
     expect(normalizeBlockerInput({
-      cellX: 3.9,
-      cellY: -2.2,
+      xPx: 123.75,
+      yPx: -2.2,
       sizeXCells: 9,
       sizeYCells: 3.7,
       cornerStyle: "round",
       elevationCells: -1,
       strength: 2
     })).toEqual({
-      cellX: 3,
-      cellY: -3,
+      xPx: 123.75,
+      yPx: -2.2,
       sizeXCells: 9,
       sizeYCells: 3,
       cornerStyle: "round",
@@ -67,25 +67,30 @@ describe("lighting core normalization", () => {
     });
   });
 
+  it("rejects legacy cell coordinates and invalid pixel positions", () => {
+    expect(() => normalizeBlockerInput({ cellX: 3, cellY: 2 })).toThrow(/xPx and yPx/);
+    expect(() => normalizeBlockerInput({ xPx: Number.NaN, yPx: 80 })).toThrow(/xPx and yPx/);
+  });
+
   it("defaults blocker corners to square and accepts rounded corners", () => {
-    expect(normalizeBlockerInput({ sizeXCells: 2, sizeYCells: 3 })).toMatchObject({
+    expect(normalizeBlockerInput({ xPx: 0, yPx: 0, sizeXCells: 2, sizeYCells: 3 })).toMatchObject({
       cornerStyle: "square"
     });
-    expect(normalizeBlockerInput({ sizeXCells: 2, sizeYCells: 3, cornerStyle: "round" })).toMatchObject({
+    expect(normalizeBlockerInput({ xPx: 0, yPx: 0, sizeXCells: 2, sizeYCells: 3, cornerStyle: "round" })).toMatchObject({
       cornerStyle: "round"
     });
   });
 
-  it("derives blocker pixel bounds from the top-left occupied cell", () => {
-    const blocker = normalizeBlockerInput({ cellX: 3, cellY: 4, sizeXCells: 2, sizeYCells: 3 });
+  it("derives blocker bounds from fractional room-image position and cell-sized footprint", () => {
+    const blocker = normalizeBlockerInput({ xPx: 120.5, yPx: 160.25, sizeXCells: 2, sizeYCells: 3 });
 
     expect(getBlockerBoundsPx(blocker, 40)).toEqual({
-      leftPx: 120,
-      topPx: 160,
+      leftPx: 120.5,
+      topPx: 160.25,
       widthPx: 80,
       heightPx: 120,
-      centerPxX: 160,
-      centerPxY: 220
+      centerPxX: 160.5,
+      centerPxY: 220.25
     });
   });
 

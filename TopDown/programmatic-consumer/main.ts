@@ -75,7 +75,7 @@ lightingPipeline.submitFrame({
     { x: 500, y: 260, radiusPx: 160, intensityScale: 0.8, color: "#b8d8ff" }
   ],
   blockers: [
-    { cellX: 11, cellY: 3, sizeXCells: 2, sizeYCells: 1, elevationCells: 1 }
+    { xPx: 440, yPx: 120, sizeXCells: 2, sizeYCells: 1, elevationCells: 1 }
   ]
 });
 
