@@ -4,6 +4,9 @@ export type LightMotionMode = "static" | "sway" | "flicker" | "sway-flicker";
 /** Selects the shape of the procedural flicker profile. */
 export type FlickerStyle = "swell" | "flame";
 
+/** Selects the path used by an animated point light's sway. */
+export type SwayStyle = "directional" | "breeze";
+
 /** Selects hard rectangular or softened rounded blocker corners. */
 export type BlockerCornerStyle = "square" | "round";
 
@@ -44,11 +47,13 @@ export interface PointLightInput {
   lightHeightCells?: number;
   /** Sway displacement amplitude in room-space pixels. */
   swayAmountPx?: number;
-  /** Sway oscillation frequency in cycles per second. */
+  /** Sway path profile; omitted means legacy directional sway. */
+  swayStyle?: SwayStyle;
+  /** Sway oscillation frequency in cycles per second; controls drift pace for the breeze style. */
   swayHz?: number;
   /** Compatibility alias for `swayHz`; used only when `swayHz` is omitted. */
   swaySpeedHz?: number;
-  /** Direction of sway in degrees, using the same room-space axes as `directionDeg`. */
+  /** Direction for directional sway in degrees; ignored by the breeze style. */
   swayDirectionDeg?: number;
   /** Flicker strength from steady (`0`) to fully varying (`1`). */
   flickerAmount?: number;
@@ -142,9 +147,11 @@ export interface PointLightDefaultsInput {
   lightHeightCells?: number;
   /** Fallback sway displacement amplitude in room-space pixels. */
   swayAmountPx?: number;
-  /** Fallback sway frequency in cycles per second. */
+  /** Fallback sway path profile; defaults to legacy directional sway. */
+  swayStyle?: SwayStyle;
+  /** Fallback sway frequency in cycles per second; controls drift pace for the breeze style. */
   swayHz?: number;
-  /** Fallback sway direction in degrees. */
+  /** Fallback direction for directional sway in degrees; ignored by the breeze style. */
   swayDirectionDeg?: number;
   /** Fallback flicker strength from steady (`0`) to fully varying (`1`). */
   flickerAmount?: number;

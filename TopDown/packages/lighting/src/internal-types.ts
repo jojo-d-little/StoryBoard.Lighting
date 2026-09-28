@@ -1,4 +1,4 @@
-import type { FlickerStyle, LightColorInput, LightMotionMode } from "./contracts.js";
+import type { FlickerStyle, LightColorInput, LightMotionMode, SwayStyle } from "./contracts.js";
 
 /** Internal normalized representation of a consumer-supplied point light. */
 export interface NormalizedPointLight {
@@ -15,6 +15,7 @@ export interface NormalizedPointLight {
   intensityScale?: number;
   lightHeightCells?: number;
   swayAmountPx?: number;
+  swayStyle?: SwayStyle;
   swayHz?: number;
   swaySpeedHz?: number;
   swayDirectionDeg?: number;
@@ -33,6 +34,7 @@ export interface NormalizedPointLightDefaults {
   gradientExponent: number;
   lightHeightCells: number;
   swayAmountPx: number;
+  swayStyle: SwayStyle;
   swayHz: number;
   swayDirectionDeg: number;
   flickerAmount: number;

@@ -91,13 +91,19 @@ body{display:grid;grid-template-columns:minmax(310px,340px) minmax(0,1fr);min-wi
   <option value="sway-flicker">Sway + flicker</option>
 </select>
 
+<label>Sway style</label>
+<select id="swayStyle">
+  <option value="directional" selected>Directional</option>
+  <option value="breeze">Breeze drift</option>
+</select>
+
 <label>Sway amount: <span id="swayAmountValue">18</span> px</label>
 <input id="swayAmount" type="range" min="0" max="80" step="1" value="18">
 
 <label>Sway speed: <span id="swaySpeedValue">0.80</span> Hz</label>
 <input id="swaySpeed" type="range" min="0" max="3" step="0.05" value="0.8">
 
-<label>Sway direction: <span id="swayDirectionValue">90</span> deg</label>
+<label>Sway direction (directional style): <span id="swayDirectionValue">90</span> deg</label>
 <input id="swayDirection" type="range" min="0" max="360" step="1" value="90">
 
 <label>Flicker amount: <span id="flickerAmountValue">0.35</span></label>
@@ -225,6 +231,7 @@ const blockerSelection = document.getElementById('blockerSelection');
 const deselectBlocker = document.getElementById('deselectBlocker');
 const lightHeight = document.getElementById('lightHeight');
 const lightMotionMode = document.getElementById('lightMotionMode');
+const swayStyle = document.getElementById('swayStyle');
 const swayAmount = document.getElementById('swayAmount');
 const swaySpeed = document.getElementById('swaySpeed');
 const swayDirection = document.getElementById('swayDirection');
@@ -247,6 +254,7 @@ const pointLightDefaults = {
   outerColor: colorOuter.value,
   gradientExponent: +lightGradientExponent.value,
   lightHeightCells: +lightHeight.value,
+  swayStyle: swayStyle.value,
   swayAmountPx: +swayAmount.value,
   swayHz: +swaySpeed.value,
   swayDirectionDeg: +swayDirection.value,
@@ -265,6 +273,7 @@ let lightTemplate = {
   coneAngleDeg: +lightConeAngle.value,
   lightHeightCells: pointLightDefaults.lightHeightCells,
   motionMode: lightMotionMode.value,
+  swayStyle: pointLightDefaults.swayStyle,
   swayAmountPx: pointLightDefaults.swayAmountPx,
   swayHz: pointLightDefaults.swayHz,
   swayDirectionDeg: pointLightDefaults.swayDirectionDeg,
@@ -314,6 +323,7 @@ function readLightEditorValues() {
     coneAngleDeg: +lightConeAngle.value,
     lightHeightCells: +lightHeight.value,
     motionMode: lightMotionMode.value,
+    swayStyle: swayStyle.value,
     swayAmountPx: +swayAmount.value,
     swayHz: +swaySpeed.value,
     swayDirectionDeg: +swayDirection.value,
@@ -333,6 +343,7 @@ function setLightEditorValues(values) {
   lightConeAngle.value = String(values.coneAngleDeg);
   lightHeight.value = String(values.lightHeightCells);
   lightMotionMode.value = values.motionMode;
+  swayStyle.value = values.swayStyle || 'directional';
   swayAmount.value = String(values.swayAmountPx);
   swaySpeed.value = String(values.swayHz);
   swayDirection.value = String(values.swayDirectionDeg);
@@ -365,6 +376,7 @@ function updateTemplateDefaults(values) {
   pointLightDefaults.outerColor = values.outerColor;
   pointLightDefaults.gradientExponent = values.gradientExponent;
   pointLightDefaults.lightHeightCells = values.lightHeightCells;
+  pointLightDefaults.swayStyle = values.swayStyle;
   pointLightDefaults.swayAmountPx = values.swayAmountPx;
   pointLightDefaults.swayHz = values.swayHz;
   pointLightDefaults.swayDirectionDeg = values.swayDirectionDeg;
@@ -548,6 +560,7 @@ function updateLabels() {
   document.getElementById('swayAmountValue').textContent = swayAmount.value;
   document.getElementById('swaySpeedValue').textContent = (+swaySpeed.value).toFixed(2);
   document.getElementById('swayDirectionValue').textContent = swayDirection.value;
+  swayDirection.disabled = swayStyle.value === 'breeze';
   document.getElementById('flickerAmountValue').textContent = (+flickerAmount.value).toFixed(2);
   document.getElementById('flickerSpeedValue').textContent = (+flickerSpeed.value).toFixed(1);
   document.getElementById('shadowSoftenValue').textContent = (+shadowSoften.value).toFixed(1);
@@ -816,6 +829,7 @@ colorOuter.addEventListener('input', handleLightEditorChange);
 lightGradientExponent.addEventListener('input', handleLightEditorChange);
 lightHeight.addEventListener('input', handleLightEditorChange);
 lightMotionMode.addEventListener('change', handleLightEditorChange);
+swayStyle.addEventListener('change', handleLightEditorChange);
 swayAmount.addEventListener('input', handleLightEditorChange);
 swaySpeed.addEventListener('input', handleLightEditorChange);
 swayDirection.addEventListener('input', handleLightEditorChange);

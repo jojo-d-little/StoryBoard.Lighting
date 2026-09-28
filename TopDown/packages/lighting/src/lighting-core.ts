@@ -7,7 +7,8 @@ import type {
   PointLightDefaultsInput,
   PointLightInput,
   RoomGeometryInput,
-  RoomLightingInput
+  RoomLightingInput,
+  SwayStyle
 } from "./contracts.js";
 import type {
   EvaluatedPointLight,
@@ -28,6 +29,7 @@ export type {
   LightingPipelineInput,
   PointLightDefaultsInput,
   PointLightInput,
+  SwayStyle,
   RoomGeometryInput,
   RoomLightingInput
 } from "./contracts.js";
@@ -45,6 +47,7 @@ const DEFAULT_POINT_LIGHTS: NormalizedPointLightDefaults = {
   gradientExponent: 1,
   lightHeightCells: 2,
   swayAmountPx: 18,
+  swayStyle: "directional",
   swayHz: 0.8,
   swayDirectionDeg: 90,
   flickerAmount: 0.35,
@@ -67,6 +70,10 @@ function normalizeMotionMode(value: unknown): LightMotionMode {
 
 function normalizeFlickerStyle(value: unknown): FlickerStyle {
   return value === "flame" ? "flame" : "swell";
+}
+
+function normalizeSwayStyle(value: unknown): SwayStyle {
+  return value === "breeze" ? "breeze" : "directional";
 }
 
 function normalizeBlockerCornerStyle(value: unknown): BlockerCornerStyle {
@@ -130,6 +137,7 @@ export function normalizePointLightInput(light: PointLightInput | unknown): Norm
       ? undefined
       : Math.max(0.25, toNumberOr(source.lightHeightCells, 0.25)),
     swayAmountPx: source.swayAmountPx == null ? undefined : Math.max(0, toNumberOr(source.swayAmountPx, 0)),
+    swayStyle: source.swayStyle == null ? undefined : normalizeSwayStyle(source.swayStyle),
     swayHz: source.swayHz == null ? undefined : Math.max(0, toNumberOr(source.swayHz, 0)),
     swaySpeedHz: source.swaySpeedHz == null ? undefined : Math.max(0, toNumberOr(source.swaySpeedHz, 0)),
     swayDirectionDeg: source.swayDirectionDeg == null ? undefined : toNumberOr(source.swayDirectionDeg, 0),
@@ -213,6 +221,7 @@ export function normalizePointLightDefaultsInput(
     gradientExponent: Math.max(0.01, toNumberOr(source.gradientExponent, fallback.gradientExponent)),
     lightHeightCells: Math.max(0.25, toNumberOr(source.lightHeightCells, fallback.lightHeightCells)),
     swayAmountPx: Math.max(0, toNumberOr(source.swayAmountPx, fallback.swayAmountPx)),
+    swayStyle: source.swayStyle == null ? fallback.swayStyle : normalizeSwayStyle(source.swayStyle),
     swayHz: Math.max(0, toNumberOr(source.swayHz, fallback.swayHz)),
     swayDirectionDeg: toNumberOr(source.swayDirectionDeg, fallback.swayDirectionDeg),
     flickerAmount: clampRange(toNumberOr(source.flickerAmount, fallback.flickerAmount), 0, 1),
@@ -280,10 +289,26 @@ export function evaluatePointLight(
   if (light.motionMode === "sway" || light.motionMode === "sway-flicker") {
     const amount = light.swayAmountPx ?? pointLightDefaults.swayAmountPx;
     const hz = light.swayHz ?? light.swaySpeedHz ?? pointLightDefaults.swayHz;
-    const radians = (light.swayDirectionDeg ?? pointLightDefaults.swayDirectionDeg) * Math.PI / 180;
-    const swing = Math.sin(timeSeconds * hz * Math.PI * 2 + light.phase);
-    x += Math.cos(radians) * amount * swing;
-    y += Math.sin(radians) * amount * swing;
+    const swayStyle = light.swayStyle ?? pointLightDefaults.swayStyle;
+    if (swayStyle === "breeze") {
+      // Smooth, deterministic 2D drift, bounded to the configured sway radius.
+      const seed = light.x * 0.0137 + light.y * 0.0171 + light.phase / (Math.PI * 2);
+      const noiseTime = timeSeconds * hz + seed;
+      let swayX = smoothRandom1D(noiseTime) * 2 - 1;
+      let swayY = smoothRandom1D(noiseTime + 19.19) * 2 - 1;
+      const magnitude = Math.hypot(swayX, swayY);
+      if (magnitude > 1) {
+        swayX /= magnitude;
+        swayY /= magnitude;
+      }
+      x += swayX * amount;
+      y += swayY * amount;
+    } else {
+      const radians = (light.swayDirectionDeg ?? pointLightDefaults.swayDirectionDeg) * Math.PI / 180;
+      const swing = Math.sin(timeSeconds * hz * Math.PI * 2 + light.phase);
+      x += Math.cos(radians) * amount * swing;
+      y += Math.sin(radians) * amount * swing;
+    }
   }
 
   const innerFallback = normalizeLightColor01(pointLightDefaults.color, [1, 1, 1]);

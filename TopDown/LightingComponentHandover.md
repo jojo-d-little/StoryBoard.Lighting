@@ -114,6 +114,13 @@ flicker settings; they do not animate ambient room lighting. A game engine can
 update a light's authored `radiusPx` or `intensityScale` every frame to model
 gameplay changes such as adding fuel to a fire.
 
+Sway defaults to the backward-compatible `swayStyle: 'directional'`. Set
+`swayStyle: 'breeze'` on the defaults or an individual point light for smooth,
+deterministic two-dimensional drift bounded by `swayAmountPx`. Breeze style
+ignores `swayDirectionDeg`; that setting remains meaningful for directional
+sway only. Sway style does not enable animation by itself: `motionMode` must be
+`'sway'` or `'sway-flicker'`.
+
 ## API Surface
 
 ### `setRoomImage(imageElement, geometry)`

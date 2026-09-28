@@ -31,8 +31,11 @@ added.
 Room lighting provides a scalar `ambient` level and an optional `ambientColor`
 whose default is neutral white. Point-light radius, intensity, colors, gradient,
 height, and animation settings are supplied through `pointLightDefaults` or
-overridden on individual point lights. There is no global point-light intensity
-multiplier.
+overridden on individual point lights. Sway defaults to the legacy
+`swayStyle: "directional"`; opt into `swayStyle: "breeze"` for smooth,
+deterministic two-dimensional drift. Breeze sway is bounded by `swayAmountPx`
+and ignores `swayDirectionDeg`. Omitting `swayStyle` preserves existing light
+behavior. There is no global point-light intensity multiplier.
 
 Blockers require `xPx` and `yPx` for the top-left of their footprint in
 room-image pixels. Positions may be fractional during movement; `sizeXCells`
