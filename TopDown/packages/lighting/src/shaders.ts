@@ -110,6 +110,9 @@ export function createLightFragment(maxLights: number): string {
       float receiverHeightCells,
       float receiverBlockerId
     ) {
+      // Trace across the room image from the light's XY position to this
+      // receiving pixel. Height is handled separately below: this is a 2.5D
+      // ray over flat, constant-height blocker footprints.
       vec2 ray = pixelPos - lightPos;
       float rayLen = length(ray);
       if (rayLen <= 0.0001) return 0.0;
@@ -118,6 +121,8 @@ export function createLightFragment(maxLights: number): string {
       const int STEPS = 32;
       float strongestShadow = 0.0;
       for (int s = 1; s < STEPS; s++) {
+        // rayFraction is the sample's progress from light (0) to receiver (1).
+        // Samples stop before the receiving pixel itself.
         float rayFraction = float(s) / float(STEPS);
         vec2 samplePos = lightPos + direction * (rayLen * rayFraction);
         vec2 uv = clamp(samplePos / uImageSize, 0.0, 1.0);
@@ -126,11 +131,17 @@ export function createLightFragment(maxLights: number): string {
         vec4 occlusion = receiverBlockerId > 0.0
           ? rawOcclusionAt(samplePos)
           : texture(uOcclusionMap, uv);
+        // Do not let the receiving blocker cast a shadow onto its own top.
         if (receiverBlockerId > 0.0 && floor(occlusion.b * 255.0 + 0.5) == receiverBlockerId) continue;
         float blockerHeightCells = occlusion.r * uHeightEncodeScale;
         float blockerStrength = occlusion.g;
+        // The 2.5D height test: linearly interpolate from the light's elevation
+        // to the receiving surface's elevation at this XY sample. For a light
+        // at 3 cells and receiver at 1 cell, the ray is 2 cells high halfway.
         float rayHeightAtSample = mix(lightHeightCells, receiverHeightCells, rayFraction);
 
+        // A positive-height blocker shadows the receiver only where its top
+        // reaches or exceeds that sloping ray; keep the strongest obstruction.
         if (blockerHeightCells >= rayHeightAtSample && blockerHeightCells > 0.0) {
           strongestShadow = max(strongestShadow, blockerStrength);
         }
@@ -157,6 +168,8 @@ export function createLightFragment(maxLights: number): string {
       vec3 illumination = uAmbientColor * uAmbient;
       vec4 receiverOcclusion = rawOcclusionAt(pixel);
       float receiverBlockerId = floor(receiverOcclusion.b * 255.0 + 0.5);
+      // A blocker pixel receives light on its flat top; all other pixels
+      // receive light on the floor at height zero.
       float receiverHeightCells = receiverBlockerId > 0.0
         ? receiverOcclusion.r * uHeightEncodeScale
         : 0.0;
