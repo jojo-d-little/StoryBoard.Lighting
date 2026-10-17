@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="64" viewBox="0 0 40 64">
+  <defs>
+    <radialGradient id="soft-edge" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.78" />
+      <stop offset="0.7" stop-color="#fff" stop-opacity="0.78" />
+      <stop offset="1" stop-color="#fff" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <path d="M20 2 C29 13 36 25 36 36 C36 50 29 61 20 62 C11 61 4 50 4 36 C4 25 11 13 20 2 Z"
+        fill="url(#soft-edge)" />
+</svg>

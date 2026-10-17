@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="chip-shape">
+      <path d="M5 13 14 3l10 4 5 12-9 10-13-4z"/>
+    </clipPath>
+  </defs>
+  <path d="M5 13 14 3l10 4 5 12-9 10-13-4z" fill="#fff" stroke="#666" stroke-width="1.4" stroke-linejoin="round"/>
+  <g clip-path="url(#chip-shape)">
+    <path d="M4 13 14 3l1 13-9 2z" fill="#d6d6d6"/>
+    <path d="m14 3 10 4-5 9-4 0z" fill="#f4f4f4"/>
+    <path d="m15 16 4 0 11 4-10 10-8-7z" fill="#b8b8b8"/>
+    <path d="m6 18 9-2 5 7-8 4-6-3z" fill="#e8e8e8"/>
+    <path d="m7 13 7 3 8-9M14 16l-2 9m3-9 12 3" fill="none" stroke="#777" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    <path d="m8 12 6 3 8-8m-6 10-1 5m4-5 8 2" fill="none" stroke="#fff" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+  </g>
+</svg>

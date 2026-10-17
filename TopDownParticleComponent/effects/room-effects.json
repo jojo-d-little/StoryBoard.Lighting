@@ -1,0 +1,773 @@
+{
+  "version": 1,
+  "effects": [
+    {
+      "id": "snowfall",
+      "streams": [
+        {
+          "id": "flakes",
+          "textureId": "snowflake",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 38,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 1.8,
+          "lifeMaxSeconds": 3.2,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -5,
+          "velocityXMaxPxPerSecond": 5,
+          "velocityYMinPxPerSecond": -5,
+          "velocityYMaxPxPerSecond": 5,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 8,
+          "startHeightPx": 8,
+          "endWidthPx": 6,
+          "endHeightPx": 6,
+          "startColor": "#ffffff",
+          "endColor": "#dceaff",
+          "startAlpha": 0.85,
+          "endAlpha": 0.35,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "hail",
+      "streams": [
+        {
+          "id": "stones",
+          "textureId": "fragment",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 24,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 0.45,
+          "lifeMaxSeconds": 0.7,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -3,
+          "velocityXMaxPxPerSecond": 3,
+          "velocityYMinPxPerSecond": -3,
+          "velocityYMaxPxPerSecond": 3,
+          "startWidthPx": 5,
+          "startHeightPx": 5,
+          "endWidthPx": 4,
+          "endHeightPx": 4,
+          "startColor": "#e7f6ff",
+          "endColor": "#e7f6ff",
+          "startAlpha": 0.9,
+          "endAlpha": 0.65,
+          "occludeByCells": true,
+          "onDeathStreamId": "impact"
+        },
+        {
+          "id": "impact",
+          "textureId": "rain-ripple",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 0,
+          "spawn": {
+            "kind": "point",
+            "radiusPx": 0
+          },
+          "lifeMinSeconds": 0.12,
+          "lifeMaxSeconds": 0.18,
+          "startElevationCells": 0,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": 0,
+          "velocityXMaxPxPerSecond": 0,
+          "velocityYMinPxPerSecond": 0,
+          "velocityYMaxPxPerSecond": 0,
+          "startWidthPx": 4,
+          "startHeightPx": 4,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#b9d9ee",
+          "endColor": "#b9d9ee",
+          "startAlpha": 0.7,
+          "endAlpha": 0,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "ashfall",
+      "streams": [
+        {
+          "id": "ash",
+          "textureId": "fragment",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 42,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 1.5,
+          "lifeMaxSeconds": 2.8,
+          "startElevationCells": 2.8,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -7,
+          "velocityXMaxPxPerSecond": 7,
+          "velocityYMinPxPerSecond": -7,
+          "velocityYMaxPxPerSecond": 7,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 4,
+          "startHeightPx": 4,
+          "endWidthPx": 3,
+          "endHeightPx": 3,
+          "startColor": "#b8aaa0",
+          "endColor": "#625b58",
+          "startAlpha": 0.85,
+          "endAlpha": 0.35,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "cinderfall",
+      "streams": [
+        {
+          "id": "cinders",
+          "textureId": "soft-mote",
+          "layer": "post-light",
+          "blendMode": "add",
+          "ratePerSecond": 17,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 1,
+          "lifeMaxSeconds": 1.6,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -7,
+          "velocityXMaxPxPerSecond": 7,
+          "velocityYMinPxPerSecond": -7,
+          "velocityYMaxPxPerSecond": 7,
+          "startWidthPx": 11,
+          "startHeightPx": 11,
+          "endWidthPx": 6,
+          "endHeightPx": 6,
+          "startColor": "#ffca59",
+          "endColor": "#ae3520",
+          "startAlpha": 0.9,
+          "endAlpha": 0.25,
+          "occludeByCells": true,
+          "onDeathStreamId": "cool-fragment"
+        },
+        {
+          "id": "cool-fragment",
+          "textureId": "fragment",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 0,
+          "spawn": {
+            "kind": "point",
+            "radiusPx": 0
+          },
+          "lifeMinSeconds": 0.3,
+          "lifeMaxSeconds": 0.5,
+          "startElevationCells": 0,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": 0,
+          "velocityXMaxPxPerSecond": 0,
+          "velocityYMinPxPerSecond": 0,
+          "velocityYMaxPxPerSecond": 0,
+          "startWidthPx": 3,
+          "startHeightPx": 3,
+          "endWidthPx": 3,
+          "endHeightPx": 3,
+          "startColor": "#ae3520",
+          "endColor": "#ae3520",
+          "startAlpha": 0.45,
+          "endAlpha": 0,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "drifting-motes",
+      "streams": [
+        {
+          "id": "motes",
+          "textureId": "drifting-mote",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 11,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.304,
+          "lifeMaxSeconds": 4.096,
+          "startElevationCells": 1.1,
+          "endElevationCells": 1.1,
+          "velocityXMinPxPerSecond": -5,
+          "velocityXMaxPxPerSecond": 5,
+          "velocityYMinPxPerSecond": -5,
+          "velocityYMaxPxPerSecond": 5,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 9,
+          "startHeightPx": 9,
+          "endWidthPx": 11.700000000000001,
+          "endHeightPx": 11.700000000000001,
+          "startColor": "#d8d5c8",
+          "endColor": "#8ca09b",
+          "startAlpha": 0.64,
+          "endAlpha": 0,
+          "occludeByCells": false
+        }
+      ]
+    },
+    {
+      "id": "organic-motes",
+      "streams": [
+        {
+          "id": "motes",
+          "textureId": "organic-mote",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 8,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.448,
+          "lifeMaxSeconds": 4.352,
+          "startElevationCells": 1.1,
+          "endElevationCells": 1.1,
+          "velocityXMinPxPerSecond": -5,
+          "velocityXMaxPxPerSecond": 5,
+          "velocityYMinPxPerSecond": -5,
+          "velocityYMaxPxPerSecond": 5,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 8,
+          "startHeightPx": 8,
+          "endWidthPx": 10.4,
+          "endHeightPx": 10.4,
+          "startColor": "#e6d28a",
+          "endColor": "#92a66e",
+          "startAlpha": 0.62,
+          "endAlpha": 0,
+          "occludeByCells": false
+        }
+      ]
+    },
+    {
+      "id": "oak-leaves",
+      "streams": [
+        {
+          "id": "leaves",
+          "textureId": "leaf-oak",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 14,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.2,
+          "lifeMaxSeconds": 3.4,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -8,
+          "velocityXMaxPxPerSecond": 8,
+          "velocityYMinPxPerSecond": -8,
+          "velocityYMaxPxPerSecond": 8,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 13,
+          "startHeightPx": 13,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#b87835",
+          "endColor": "#71512e",
+          "startAlpha": 0.9,
+          "endAlpha": 0.55,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "maple-leaves",
+      "streams": [
+        {
+          "id": "leaves",
+          "textureId": "leaf-maple",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 14,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.2,
+          "lifeMaxSeconds": 3.4,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -8,
+          "velocityXMaxPxPerSecond": 8,
+          "velocityYMinPxPerSecond": -8,
+          "velocityYMaxPxPerSecond": 8,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 13,
+          "startHeightPx": 13,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#c94f2b",
+          "endColor": "#e5a43c",
+          "startAlpha": 0.9,
+          "endAlpha": 0.55,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "oval-leaves",
+      "streams": [
+        {
+          "id": "leaves",
+          "textureId": "leaf-oval",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 14,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.2,
+          "lifeMaxSeconds": 3.4,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -8,
+          "velocityXMaxPxPerSecond": 8,
+          "velocityYMinPxPerSecond": -8,
+          "velocityYMaxPxPerSecond": 8,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 13,
+          "startHeightPx": 13,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#b59a44",
+          "endColor": "#6c7738",
+          "startAlpha": 0.9,
+          "endAlpha": 0.55,
+          "occludeByCells": true
+        }
+      ]
+    },
+    {
+      "id": "mixed-leaves",
+      "streams": [
+        {
+          "id": "oak",
+          "textureId": "leaf-oak",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 5,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.2,
+          "lifeMaxSeconds": 3.4,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -8,
+          "velocityXMaxPxPerSecond": 8,
+          "velocityYMinPxPerSecond": -8,
+          "velocityYMaxPxPerSecond": 8,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 13,
+          "startHeightPx": 13,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#b87835",
+          "endColor": "#71512e",
+          "startAlpha": 0.9,
+          "endAlpha": 0.55,
+          "occludeByCells": true
+        },
+        {
+          "id": "maple",
+          "textureId": "leaf-maple",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 5,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.2,
+          "lifeMaxSeconds": 3.4,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -8,
+          "velocityXMaxPxPerSecond": 8,
+          "velocityYMinPxPerSecond": -8,
+          "velocityYMaxPxPerSecond": 8,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 13,
+          "startHeightPx": 13,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#c94f2b",
+          "endColor": "#e5a43c",
+          "startAlpha": 0.9,
+          "endAlpha": 0.55,
+          "occludeByCells": true
+        },
+        {
+          "id": "oval",
+          "textureId": "leaf-oval",
+          "layer": "pre-light",
+          "blendMode": "normal",
+          "ratePerSecond": 4,
+          "spawn": {
+            "kind": "room"
+          },
+          "lifeMinSeconds": 2.2,
+          "lifeMaxSeconds": 3.4,
+          "startElevationCells": 3,
+          "endElevationCells": 0,
+          "velocityXMinPxPerSecond": -8,
+          "velocityXMaxPxPerSecond": 8,
+          "velocityYMinPxPerSecond": -8,
+          "velocityYMaxPxPerSecond": 8,
+          "rotationMinRadians": 0,
+          "rotationMaxRadians": 6.2831853,
+          "startWidthPx": 13,
+          "startHeightPx": 13,
+          "endWidthPx": 11,
+          "endHeightPx": 11,
+          "startColor": "#b59a44",
+          "endColor": "#6c7738",
+          "startAlpha": 0.9,
+          "endAlpha": 0.55,
+          "occludeByCells": true
+        }
+      ]
+    }
+  ],
+  "styles": [
+    {
+      "id": "rain",
+      "label": "Rain",
+      "defaultColors": {
+        "primary": "#edf5ff",
+        "secondary": "#c4deff"
+      },
+      "colorLabels": {
+        "primary": "Drop color",
+        "secondary": "Ripple color"
+      },
+      "colorBindings": {
+        "drops": "primary",
+        "splash": "secondary"
+      },
+      "windStreamIds": [
+        "drops"
+      ],
+      "windStretchStreamIds": [
+        "drops"
+      ],
+      "defaultEmissionRatePerSecond": 180,
+      "defaultSizePx": 5,
+      "defaultLifetimeSeconds": 0.7,
+      "defaultColorTransitionSeconds": 1.2
+    },
+    {
+      "id": "snowfall",
+      "label": "Snowfall",
+      "defaultColors": {
+        "primary": "#ffffff",
+        "secondary": "#dceaff"
+      },
+      "colorLabels": {
+        "primary": "Fresh flake",
+        "secondary": "Faded flake"
+      },
+      "colorBindings": {
+        "flakes": "transition"
+      },
+      "windStreamIds": [
+        "flakes"
+      ],
+      "temporalColorStreamIds": [
+        "flakes"
+      ],
+      "defaultColorTransitionFraction": 1,
+      "defaultEmissionRatePerSecond": 38,
+      "defaultSizePx": 8,
+      "defaultLifetimeSeconds": 2.5,
+      "defaultColorTransitionSeconds": 2.5
+    },
+    {
+      "id": "hail",
+      "label": "Hail",
+      "defaultColors": {
+        "primary": "#e7f6ff",
+        "secondary": "#b9d9ee"
+      },
+      "colorLabels": {
+        "primary": "Hailstone",
+        "secondary": "Impact"
+      },
+      "colorBindings": {
+        "stones": "primary",
+        "impact": "secondary"
+      },
+      "windStreamIds": [
+        "stones"
+      ],
+      "defaultEmissionRatePerSecond": 24,
+      "defaultSizePx": 5,
+      "defaultLifetimeSeconds": 0.6,
+      "defaultColorTransitionSeconds": 0.575
+    },
+    {
+      "id": "ashfall",
+      "label": "Ashfall",
+      "defaultColors": {
+        "primary": "#b8aaa0",
+        "secondary": "#625b58"
+      },
+      "colorLabels": {
+        "primary": "New ash",
+        "secondary": "Faded ash"
+      },
+      "colorBindings": {
+        "ash": "transition"
+      },
+      "windStreamIds": [
+        "ash"
+      ],
+      "temporalColorStreamIds": [
+        "ash"
+      ],
+      "defaultColorTransitionFraction": 0.8,
+      "defaultEmissionRatePerSecond": 42,
+      "defaultSizePx": 4,
+      "defaultLifetimeSeconds": 2.2,
+      "defaultColorTransitionSeconds": 1.72
+    },
+    {
+      "id": "cinderfall",
+      "label": "Cinderfall",
+      "defaultColors": {
+        "primary": "#ffca59",
+        "secondary": "#ae3520"
+      },
+      "colorLabels": {
+        "primary": "Hot cinder",
+        "secondary": "Cooling cinder"
+      },
+      "colorBindings": {
+        "cinders": "transition",
+        "cool-fragment": "secondary"
+      },
+      "windStreamIds": [
+        "cinders"
+      ],
+      "temporalColorStreamIds": [
+        "cinders"
+      ],
+      "defaultColorTransitionFraction": 0.7,
+      "defaultEmissionRatePerSecond": 17,
+      "defaultSizePx": 11,
+      "defaultLifetimeSeconds": 1.3,
+      "defaultColorTransitionSeconds": 0.9099999999999999
+    },
+    {
+      "id": "drifting-motes",
+      "label": "Drifting Motes",
+      "defaultColors": {
+        "primary": "#d8d5c8",
+        "secondary": "#8ca09b"
+      },
+      "colorLabels": {
+        "primary": "Visible mote",
+        "secondary": "Fading mote"
+      },
+      "colorBindings": {
+        "motes": "transition"
+      },
+      "windStreamIds": [
+        "motes"
+      ],
+      "temporalColorStreamIds": [
+        "motes"
+      ],
+      "defaultColorTransitionFraction": 0.85,
+      "defaultEmissionRatePerSecond": 11,
+      "defaultSizePx": 9,
+      "defaultLifetimeSeconds": 3.2,
+      "defaultColorTransitionSeconds": 2.72
+    },
+    {
+      "id": "organic-motes",
+      "label": "Organic Motes",
+      "defaultColors": {
+        "primary": "#e6d28a",
+        "secondary": "#92a66e"
+      },
+      "colorLabels": {
+        "primary": "Organic mote",
+        "secondary": "Fading mote"
+      },
+      "colorBindings": {
+        "motes": "transition"
+      },
+      "windStreamIds": [
+        "motes"
+      ],
+      "temporalColorStreamIds": [
+        "motes"
+      ],
+      "defaultColorTransitionFraction": 0.85,
+      "defaultEmissionRatePerSecond": 8,
+      "defaultSizePx": 8,
+      "defaultLifetimeSeconds": 3.4,
+      "defaultColorTransitionSeconds": 2.8899999999999997
+    },
+    {
+      "id": "oak-leaves",
+      "label": "Oak Leaves",
+      "defaultColors": {
+        "primary": "#b87835",
+        "secondary": "#71512e"
+      },
+      "colorLabels": {
+        "primary": "Leaf upper surface",
+        "secondary": "Leaf underside"
+      },
+      "colorBindings": {
+        "leaves": "flip"
+      },
+      "windStreamIds": [
+        "leaves"
+      ],
+      "edgeFlowStreamIds": [
+        "leaves"
+      ],
+      "windMotionMix": {
+        "streamIds": ["leaves"],
+        "maxWindSpeedPxPerSecond": 40,
+        "lowWindSkitterFraction": 0.2,
+        "highWindSkitterFraction": 0.08
+      },
+      "defaultColorTransitionFraction": 0.8,
+      "defaultEmissionRatePerSecond": 14,
+      "defaultSizePx": 13,
+      "defaultLifetimeSeconds": 2.8,
+      "defaultColorTransitionSeconds": 2.24
+    },
+    {
+      "id": "maple-leaves",
+      "label": "Maple Leaves",
+      "defaultColors": {
+        "primary": "#c94f2b",
+        "secondary": "#e5a43c"
+      },
+      "colorLabels": {
+        "primary": "Leaf upper surface",
+        "secondary": "Leaf underside"
+      },
+      "colorBindings": {
+        "leaves": "flip"
+      },
+      "windStreamIds": [
+        "leaves"
+      ],
+      "edgeFlowStreamIds": [
+        "leaves"
+      ],
+      "windMotionMix": {
+        "streamIds": ["leaves"],
+        "maxWindSpeedPxPerSecond": 40,
+        "lowWindSkitterFraction": 0.2,
+        "highWindSkitterFraction": 0.08
+      },
+      "defaultColorTransitionFraction": 0.8,
+      "defaultEmissionRatePerSecond": 14,
+      "defaultSizePx": 13,
+      "defaultLifetimeSeconds": 2.8,
+      "defaultColorTransitionSeconds": 2.24
+    },
+    {
+      "id": "oval-leaves",
+      "label": "Oval Leaves",
+      "defaultColors": {
+        "primary": "#b59a44",
+        "secondary": "#6c7738"
+      },
+      "colorLabels": {
+        "primary": "Leaf upper surface",
+        "secondary": "Leaf underside"
+      },
+      "colorBindings": {
+        "leaves": "flip"
+      },
+      "windStreamIds": [
+        "leaves"
+      ],
+      "edgeFlowStreamIds": [
+        "leaves"
+      ],
+      "windMotionMix": {
+        "streamIds": ["leaves"],
+        "maxWindSpeedPxPerSecond": 40,
+        "lowWindSkitterFraction": 0.2,
+        "highWindSkitterFraction": 0.08
+      },
+      "defaultColorTransitionFraction": 0.8,
+      "defaultEmissionRatePerSecond": 14,
+      "defaultSizePx": 13,
+      "defaultLifetimeSeconds": 2.8,
+      "defaultColorTransitionSeconds": 2.24
+    },
+    {
+      "id": "mixed-leaves",
+      "label": "Mixed Leaves",
+      "defaultColors": {
+        "primary": "#c17634",
+        "secondary": "#74814a"
+      },
+      "colorLabels": {
+        "primary": "Leaf upper surface",
+        "secondary": "Leaf underside"
+      },
+      "colorBindings": {
+        "oak": "flip",
+        "maple": "flip",
+        "oval": "flip"
+      },
+      "windStreamIds": [
+        "oak",
+        "maple",
+        "oval"
+      ],
+      "edgeFlowStreamIds": [
+        "oak",
+        "maple",
+        "oval"
+      ],
+      "windMotionMix": {
+        "streamIds": ["oak", "maple", "oval"],
+        "maxWindSpeedPxPerSecond": 40,
+        "lowWindSkitterFraction": 0.2,
+        "highWindSkitterFraction": 0.08
+      },
+      "defaultColorTransitionFraction": 0.8,
+      "defaultEmissionRatePerSecond": 14,
+      "defaultSizePx": 13,
+      "defaultLifetimeSeconds": 2.8,
+      "defaultColorTransitionSeconds": 2.24
+    }
+  ]
+}

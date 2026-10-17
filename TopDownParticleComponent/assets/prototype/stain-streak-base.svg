@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="wash" x1="0" x2="1"><stop stop-color="#fff" stop-opacity="0"/><stop offset=".18" stop-color="#fff" stop-opacity=".55"/><stop offset=".5" stop-color="#fff" stop-opacity=".8"/><stop offset=".82" stop-color="#fff" stop-opacity=".52"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="soft-edge"><feGaussianBlur stdDeviation="2.3"/></filter>
+  </defs>
+  <path filter="url(#soft-edge)" fill="url(#wash)" d="M23 144c24-5 41-15 58-29 20-14 40-19 58-16 24 4 43-10 70-25 8-4 16-1 20 5-4 12-18 20-30 30-21 18-39 29-61 31-17 1-33 9-52 24-19 15-40 23-65 21-9-1-14-6-15-13 4-11 9-23 17-28z"/>
+</svg>

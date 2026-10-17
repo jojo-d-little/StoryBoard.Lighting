@@ -2,6 +2,11 @@
 TopDown/node_modules/
 TopDown/dist/
 TopDown/packages/lighting/dist/
+TopDownParticleComponent/node_modules/
+TopDownParticleComponent/packages/particles/dist/
+TopDownParticleComponent/dist/
+TopDownParticleComponent/.browser-check/
+TopDownParticleComponent/preview.png
 *.tgz
 
 # Local editor settings

@@ -1,0 +1,58 @@
+name: Publish particle package
+
+on:
+  push:
+    tags:
+      - 'particles-v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: TopDownParticleComponent
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js for GitHub Packages
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@jojo-d-little"
+          cache: npm
+          cache-dependency-path: TopDownParticleComponent/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag version and package name
+        shell: pwsh
+        run: |
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^particles-v', ''
+          $package = Get-Content .\packages\particles\package.json -Raw | ConvertFrom-Json
+          if ($package.name -ne '@jojo-d-little/storyboard-particles') {
+            throw "Unexpected package name '$($package.name)'."
+          }
+          if ($tagVersion -ne [string]$package.version) {
+            throw "Tag '$tagVersion' does not match package version '$($package.version)'."
+          }
+
+      - name: Build and validate package
+        run: |
+          npm run build:package
+          npm run typecheck
+          npm test
+          npm run consumer:packed-smoke
+          npm run pack:package
+
+      - name: Publish to GitHub Packages
+        run: npm publish ./packages/particles --registry https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

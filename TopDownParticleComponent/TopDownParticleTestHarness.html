@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Top-Down Particle Test Harness</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:#1b2028;color:#e6eaf0;font-family:system-ui,sans-serif}
+body{display:grid;grid-template-columns:340px minmax(0,1fr);overflow:hidden}
+#controls{box-sizing:border-box;padding:14px;overflow:auto;background:#12161d;border-right:1px solid #374150}
+h1{font-size:18px;margin:0 0 6px} h2{font-size:14px;margin:18px 0 8px;color:#a9c8ed} h3{font-size:13px;margin:16px 0 6px;color:#a9c8ed}
+p{font-size:12px;line-height:1.4;color:#aab5c3;margin:4px 0 10px}
+label{display:block;font-size:13px;margin:9px 0 3px} label.inline{display:flex;align-items:center;gap:7px}
+input[type=range]{width:100%} input[type=color]{width:100%;height:30px;box-sizing:border-box}
+select,textarea,button{box-sizing:border-box;background:#283241;border:1px solid #526275;color:#e6eaf0;border-radius:5px;padding:6px;font:inherit}
+input[type=file]{box-sizing:border-box;width:100%;margin-top:4px;color:#cbd5e1;font-size:11px}
+select,textarea{width:100%} textarea{height:130px;resize:vertical;font:11px ui-monospace,monospace}
+button{cursor:pointer;font-size:12px;margin:4px 4px 4px 0} button.active{background:#395778;border-color:#92c2fb}
+.row{display:flex;flex-wrap:wrap;gap:2px}.note{font-size:12px;color:#9eabbc}
+.tabs{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 8px}
+.tab-btn{margin:0;padding:7px 9px;border-color:#526275;background:#222b37}
+.tab-btn.active{background:#395778;border-color:#92c2fb}
+.tab-panel{display:none}.tab-panel.active{display:block}
+#status{font-size:12px;line-height:1.45;background:#1d2530;padding:8px;border-radius:5px;margin-top:12px}
+#stageHost{position:relative;min-width:0;min-height:0;margin:16px;border:1px solid #55677b;background:#202a35;overflow:hidden}
+#stageHost canvas{display:block;width:100%;height:100%}
+@media(max-width:850px){body{display:flex;flex-direction:column;overflow:auto}#controls{height:46vh;min-height:300px;border-right:0;border-bottom:1px solid #374150}#stageHost{height:54vh;min-height:320px;margin:0}}
+</style>
+</head>
+<body>
+<aside id="controls">
+  <h1>Top-Down Particle Harness</h1>
+  <p>Overhead room view: screen X/Y is floor position; elevation points out of the screen. Choose a tab to tune an effect or move its source.</p>
+  <div class="row">
+    <button id="pause">Pause</button>
+    <button id="step">Step</button>
+    <button id="reset">Reset</button>
+  </div>
+  <h2>Room background</h2>
+  <label>Load an image<input id="backgroundFile" type="file" accept="image/*"></label>
+  <div class="row"><button id="clearBackground" type="button">Clear image</button></div>
+  <label>Image fit</label><select id="backgroundFit"><option value="contain">Contain · show all</option><option value="cover">Cover · fill room</option><option value="stretch">Stretch · fill exactly</option></select>
+  <label class="inline"><input id="gridEnabled" type="checkbox" checked> Show test grid</label>
+  <p id="backgroundStatus" class="note" aria-live="polite">Sample grid shown.</p>
+  <p class="note">Images are preview-only and are not included in exported scene settings.</p>
+  <div class="tabs" role="tablist" aria-label="Particle controls">
+    <button id="roomTab" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tabRoom" data-tab="tabRoom">Room</button>
+    <button id="flameTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabFlame" data-tab="tabFlame">Flame</button>
+    <button id="smokeTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabSmoke" data-tab="tabSmoke">Smoke</button>
+    <button id="accentTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabAccents" data-tab="tabAccents">Accents</button>
+    <button id="stainTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabStains" data-tab="tabStains">Surface stains</button>
+    <button id="atmosphereTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabAtmosphere" data-tab="tabAtmosphere">Fog &amp; clouds</button>
+    <button id="sceneTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabScene" data-tab="tabScene">Lighting &amp; data</button>
+  </div>
+  <section id="tabRoom" class="tab-panel active" role="tabpanel" aria-labelledby="roomTab">
+    <h2>Room effects</h2>
+    <p>Three room effect slots can each choose rain, snowfall, hail, ashfall, cinderfall, drifting motes, organic motes, or one of four falling-leaf recipes. Fog and haze will use a separate area-effect path.</p>
+    <p>Choose oak, maple, or oval leaves, or mix all three shapes together. Drifting Motes covers dust and magic; Organic Motes covers pollen and spores.</p>
+    <label>Selected room slot</label><select id="selectedRoomEffect"></select>
+    <label class="inline"><input id="roomEnabled" type="checkbox"> Enabled</label>
+    <label>Style (7 choices)</label><select id="roomStyle"></select>
+    <label>Emission rate: <output id="roomRateValue">38</output> particles/s</label>
+    <input id="roomRate" type="range" min="0" max="300" step="1" value="38">
+    <div id="roomOverallSizeControl">
+      <label>Particle size: <output id="roomSizeValue">8</output> px</label>
+      <input id="roomSize" type="range" min="1" max="40" step="1" value="8">
+    </div>
+    <div id="rainSizeControls" hidden>
+      <label>Falling drop size: <output id="rainDropSizeValue">3</output> px</label>
+      <input id="rainDropSize" type="range" min="1" max="16" step="1" value="3">
+      <label>Landing ripple size: <output id="rainSplashSizeValue">6</output> px</label>
+      <input id="rainSplashSize" type="range" min="1" max="20" step="1" value="6">
+    </div>
+    <div id="roomLifetimeControls"><label>Particle lifetime: <output id="roomLifeValue">2.5</output> s</label>
+    <input id="roomLife" type="range" min="0.1" max="10" step="0.1" value="2.5"></div>
+    <p id="roomFallDurationHint" hidden>For falling styles, this is the exact time from spawn until the fall animation ends.</p>
+    <p id="roomEdgeFlowHint" hidden>Set nonzero wind to bring leaves in from the upwind edge. They cross the room and leave at the downwind edge; travel time follows room size and wind speed.</p>
+    <label id="roomPrimaryLabel">Primary color</label><input id="roomPrimaryColor" type="color">
+    <label id="roomSecondaryLabel">Secondary color</label><input id="roomSecondaryColor" type="color">
+    <div id="roomColorTimingControls">
+      <label>Color transition: <output id="roomColorTimingValue">2.5</output> s</label>
+      <input id="roomColorTiming" type="range" min="0.1" max="10" step="0.1" value="2.5">
+    </div>
+    <label>Lighting</label><select id="roomLayer"><option value="style-default">Style default</option><option value="pre-light">Before lighting</option><option value="post-light">After lighting</option></select>
+    <h3>Wind for this effect</h3>
+    <p>Wind moves this effect across the floor plane. 0° is right; 90° is down the room image. Each room slot has its own wind.</p>
+    <label>Direction: <output id="windDirectionValue">0</output>°</label>
+    <input id="windDirection" type="range" min="0" max="359" step="1" value="0">
+    <label>Strength: <output id="windStrengthValue">0</output> px/s</label>
+    <input id="windStrength" type="range" min="0" max="40" step="1" value="0">
+  </section>
+  <section id="tabFlame" class="tab-panel" role="tabpanel" aria-labelledby="flameTab">
+    <h2>Point emitter · flame</h2>
+    <p>Select a fire, then click the room to move it.</p>
+    <div class="row"><select id="selectedFire" aria-label="Selected fire"></select><button id="addFire">Add fire</button><button id="removeFire">Remove</button></div>
+    <label class="inline"><input id="fireEnabled" type="checkbox"> Enabled</label>
+    <label>Style</label><select id="fireStyle"></select>
+    <label id="firePrimaryLabel">Primary color</label><input id="firePrimaryColor" type="color" value="#ffb13b">
+    <label id="fireSecondaryLabel">Secondary color</label><input id="fireSecondaryColor" type="color" value="#ff3c12">
+    <label id="fireTipColorLabel">Tip color</label><input id="fireTipColor" type="color" value="#fff0b0">
+    <label>Emission rate: <output id="fireRateValue">30</output> particles/s</label>
+    <input id="fireRate" type="range" min="0" max="300" step="1" value="30">
+    <label>Particle size: <output id="fireSizeValue">12</output> px</label>
+    <input id="fireSize" type="range" min="1" max="40" step="1" value="12">
+    <label>Emitter spread radius: <output id="fireRadiusValue">9</output> px</label>
+    <input id="fireRadius" type="range" min="0" max="64" step="1" value="9">
+    <label>Particle lifetime: <output id="fireLifeValue">1.2</output> s</label>
+    <input id="fireLife" type="range" min="0.1" max="5" step="0.1" value="1.2">
+    <label>Color transition: <output id="fireColorTimingValue">1.2</output> s</label>
+    <input id="fireColorTiming" type="range" min="0.1" max="5" step="0.1" value="1.2">
+    <label class="inline"><input id="fireSurgeEnabled" type="checkbox"> Random surges enabled</label>
+    <label>Extra particles per surge: <output id="fireSurgeCountValue">8</output></label><input id="fireSurgeCount" type="range" min="1" max="80" step="1" value="8">
+    <div class="row"><label>Minimum interval (s)<input id="fireSurgeMin" type="number" min="0.1" max="60" step="0.1" value="2"></label><label>Maximum interval (s)<input id="fireSurgeMax" type="number" min="0.1" max="60" step="0.1" value="5"></label></div>
+    <label>Random seed<input id="fireSurgeSeed" type="number" min="0" max="4294967295" step="1" value="101"></label>
+    <h3>Before / after lighting</h3>
+    <label>Flame body</label><select id="flameLayer"><option value="pre-light">Before lighting</option><option value="post-light">After lighting</option></select>
+    <label>Embers</label><select id="embersLayer"><option value="pre-light">Before lighting</option><option value="post-light">After lighting</option></select>
+  </section>
+  <section id="tabSmoke" class="tab-panel" role="tabpanel" aria-labelledby="smokeTab">
+    <h2>Point emitter · smoke</h2>
+    <p>Select a smoke source, then click the room to place it independently of the flames.</p>
+    <div class="row"><select id="selectedSmoke" aria-label="Selected smoke"></select><button id="addSmoke">Add smoke</button><button id="removeSmoke">Remove</button></div>
+    <label class="inline"><input id="smokeEnabled" type="checkbox"> Enabled</label>
+    <label>Style</label><select id="smokeStyle"></select>
+    <label>Emission rate: <output id="smokeRateValue">12</output> particles/s</label>
+    <input id="smokeRate" type="range" min="0" max="300" step="1" value="12">
+    <label>Particle size: <output id="smokeSizeValue">20</output> px</label>
+    <input id="smokeSize" type="range" min="1" max="60" step="1" value="20">
+    <label>Emitter spread radius: <output id="smokeRadiusValue">9</output> px</label>
+    <input id="smokeRadius" type="range" min="0" max="64" step="1" value="9">
+    <label>Clear radius: <output id="smokeClearRadiusValue">0</output> px</label>
+    <input id="smokeClearRadius" type="range" min="0" max="9" step="1" value="0">
+    <p>Smoke particles spawn between the clear radius and emitter spread radius.</p>
+    <h3>Wind for this smoke emitter</h3>
+    <label>Direction: <output id="smokeWindDirectionValue">0</output>°</label>
+    <input id="smokeWindDirection" type="range" min="0" max="359" step="1" value="0">
+    <label>Strength: <output id="smokeWindStrengthValue">0</output> px/s</label>
+    <input id="smokeWindStrength" type="range" min="0" max="40" step="1" value="0">
+    <p>Wind moves smoke across the floor: 0° is right and 90° is down the room image.</p>
+    <h3>Temporary wind nudge</h3>
+    <p>Send a one-time wind stimulus to the selected emitter. Existing responsive particles drift at full strength for the selected duration, then fade smoothly back to their authored motion.</p>
+    <label>Direction: <output id="smokeNudgeDirectionValue">0</output>°</label><input id="smokeNudgeDirection" type="range" min="0" max="359" step="1" value="0">
+    <label>Wind speed: <output id="smokeNudgeSpeedValue">35</output> px/s</label><input id="smokeNudgeSpeed" type="range" min="0" max="100" step="1" value="35">
+    <label>Duration: <output id="smokeNudgeDurationValue">0.8</output> s</label><input id="smokeNudgeDuration" type="range" min="0.1" max="3" step="0.1" value="0.8">
+    <button id="sendSmokeWindNudge">Send wind nudge</button>
+    <label>Particle lifetime: <output id="smokeLifeValue">2.5</output> s</label>
+    <input id="smokeLife" type="range" min="0.1" max="10" step="0.1" value="2.5">
+    <label id="smokePrimaryLabel">Primary color</label><input id="smokePrimaryColor" type="color" value="#a5a1a0">
+    <label id="smokeSecondaryLabel">Secondary color</label><input id="smokeSecondaryColor" type="color" value="#d1ced0">
+    <label>Color transition: <output id="smokeColorTimingValue">2.5</output> s</label>
+    <input id="smokeColorTiming" type="range" min="0.1" max="10" step="0.1" value="2.5">
+    <label class="inline"><input id="smokeSurgeEnabled" type="checkbox"> Random surges enabled</label>
+    <label>Extra particles per surge: <output id="smokeSurgeCountValue">8</output></label><input id="smokeSurgeCount" type="range" min="1" max="80" step="1" value="8">
+    <div class="row"><label>Minimum interval (s)<input id="smokeSurgeMin" type="number" min="0.1" max="60" step="0.1" value="2"></label><label>Maximum interval (s)<input id="smokeSurgeMax" type="number" min="0.1" max="60" step="0.1" value="5"></label></div>
+    <label>Random seed<input id="smokeSurgeSeed" type="number" min="0" max="4294967295" step="1" value="202"></label>
+    <h3>Before / after lighting</h3>
+    <label>Smoke</label><select id="smokeLayer"><option value="pre-light">Before lighting</option><option value="post-light">After lighting</option></select>
+  </section>
+  <section id="tabAccents" class="tab-panel" role="tabpanel" aria-labelledby="accentTab">
+    <h2>Point emitter · accents</h2>
+    <p>Use these for brief splashes, sparks, impact puffs, or particles around an object. Click the room to move the selected source.</p>
+    <div class="row"><select id="selectedAccent" aria-label="Selected accent"></select><button id="addAccent">Add accent</button><button id="removeAccent">Remove</button></div>
+    <label class="inline"><input id="accentEnabled" type="checkbox"> Enabled</label>
+    <label>Style</label><select id="accentStyle"></select>
+    <label>Primary color</label><input id="accentPrimaryColor" type="color">
+    <label>Secondary color</label><input id="accentSecondaryColor" type="color">
+    <div id="accentContinuousControls"><label>Continuous rate: <output id="accentRateValue">0</output> particles/s</label><input id="accentRate" type="range" min="0" max="80" step="1" value="0"></div>
+    <label>Particle size: <output id="accentSizeValue">5</output> px</label><input id="accentSize" type="range" min="1" max="40" step="1" value="5">
+    <label>Spread radius: <output id="accentRadiusValue">8</output> px</label><input id="accentRadius" type="range" min="0" max="64" step="1" value="8">
+    <label>Particle lifetime: <output id="accentLifeValue">1.0</output> s</label><input id="accentLife" type="range" min="0.1" max="5" step="0.1" value="1">
+    <div id="accentDirectionControls" hidden><h3 id="accentDirectionTitle">Direction</h3>
+      <label>Direction: <output id="accentDirectionValue">0</output>°</label><input id="accentDirection" type="range" min="0" max="359" step="1" value="0">
+      <label><span id="accentDirectionStrengthLabel">Push speed</span>: <output id="accentDirectionStrengthValue">12</output> px/s</label><input id="accentDirectionStrength" type="range" min="0" max="100" step="1" value="12">
+      <p>0° points right across the floor; 90° points down the room image.</p>
+    </div>
+    <div id="debrisControls" hidden>
+      <h3>Wall hit</h3>
+      <p>Each strike sends chips outward. When their short flight ends, they settle into a stationary pile that lasts until the room changes.</p>
+      <label>Chips per strike: <output id="debrisCountValue">3</output></label><input id="debrisCount" type="range" min="1" max="8" step="1" value="3">
+      <button id="debrisStrike">Trigger hammer strike</button>
+    </div>
+    <div id="accentWindNudgeControls" hidden>
+      <h3>Temporary wind gust</h3>
+      <p>Send a one-time gust to this effect. Responsive particles drift at full strength for the selected duration, then fade smoothly back to their authored motion.</p>
+      <label>Direction: <output id="accentNudgeDirectionValue">0</output>°</label><input id="accentNudgeDirection" type="range" min="0" max="359" step="1" value="0">
+      <label>Wind speed: <output id="accentNudgeSpeedValue">35</output> px/s</label><input id="accentNudgeSpeed" type="range" min="0" max="100" step="1" value="35">
+      <label>Duration: <output id="accentNudgeDurationValue">0.8</output> s</label><input id="accentNudgeDuration" type="range" min="0.1" max="3" step="0.1" value="0.8">
+      <button id="sendAccentWindNudge">Send wind gust</button>
+    </div>
+    <div id="accentSurgeControls"><label class="inline"><input id="accentSurgeEnabled" type="checkbox"> Random bursts enabled</label>
+    <label>Particles per burst: <output id="accentSurgeCountValue">3</output></label><input id="accentSurgeCount" type="range" min="1" max="80" step="1" value="3">
+    <div class="row"><label>Minimum quiet interval (s)<input id="accentSurgeMin" type="number" min="0.1" max="60" step="0.1" value="1"></label><label>Maximum quiet interval (s)<input id="accentSurgeMax" type="number" min="0.1" max="60" step="0.1" value="3"></label></div>
+    <label>Random seed<input id="accentSurgeSeed" type="number" min="0" max="4294967295" step="1" value="301"></label></div>
+    <h3>Before / after lighting</h3><label>Particles</label><select id="accentLayer"><option value="pre-light">Before lighting</option><option value="post-light">After lighting</option></select>
+  </section>
+  <section id="tabStains" class="tab-panel" role="tabpanel" aria-labelledby="stainTab">
+    <h2>Stationary surface marks</h2>
+    <p>Place translucent stains on the room image. Click the room to position the selected mark. Each stain gets stable shape variation from its ID. Marks stay still until removed or their optional lifetime expires.</p>
+    <div class="row"><select id="selectedStain" aria-label="Selected stain"></select><button id="addStain" type="button">Add stain</button></div>
+    <div class="row"><button id="removeStain" type="button">Remove selected</button><button id="clearStains" type="button">Clear all</button></div>
+    <p id="stainEmptyHint" class="note">Add a stain to begin. Try the styles on a background image.</p>
+    <div id="stainControls" hidden>
+      <label class="inline"><input id="stainEnabled" type="checkbox"> Visible</label>
+      <label>Style</label><select id="stainStyle"><option value="splatter">Splatter · droplets and spray</option><option value="patch">Patch · irregular soiled area</option><option value="streak">Streak · dragged mark</option><option value="directional-spray">Directional spray · straight fan</option></select>
+      <label>Main color</label><input id="stainPrimaryColor" type="color">
+      <label>Detail color</label><input id="stainSecondaryColor" type="color">
+      <label><span id="stainSizeLabel">Footprint size</span>: <output id="stainSizeValue">120</output> px</label><input id="stainSize" type="range" min="12" max="320" step="2" value="120">
+      <label>Opacity: <output id="stainOpacityValue">0.65</output></label><input id="stainOpacity" type="range" min="0" max="1" step="0.01" value="0.65">
+      <label><span id="stainAmountLabel">Detail amount</span>: <output id="stainAmountValue">0.60</output></label><input id="stainAmount" type="range" min="0" max="1" step="0.01" value="0.6">
+      <div id="stainDirectionControls"><label>Direction: <output id="stainDirectionValue">25</output>°</label><input id="stainDirection" type="range" min="0" max="359" step="1" value="25"><p>For directional spray, this points the separate streaks away from the source click. Length controls their typical reach; density controls how many appear. Splatter points the droplets; streak uses it as the long axis. Patches ignore direction.</p></div>
+      <label class="inline"><input id="stainTimed" type="checkbox"> Fade and remove automatically</label>
+      <div id="stainLifetimeControls" hidden>
+        <label>Lifetime: <output id="stainLifetimeValue">20.0</output> s</label><input id="stainLifetime" type="range" min="1" max="120" step="1" value="20">
+        <label>Fade at end: <output id="stainFadeValue">4.0</output> s</label><input id="stainFade" type="range" min="0" max="20" step="0.5" value="4">
+      </div>
+      <h3>Before / after lighting</h3><label>Stain</label><select id="stainLayer"><option value="pre-light">Before lighting</option><option value="post-light">After lighting</option></select>
+    </div>
+  </section>
+  <section id="tabAtmosphere" class="tab-panel" role="tabpanel" aria-labelledby="atmosphereTab">
+    <h2>Fog overlay</h2>
+    <p>Room-wide texture overlay drawn after lighting and effects. It does not change the lighting result.</p>
+    <label class="inline"><input id="fogEnabled" type="checkbox"> Enabled</label>
+    <label>Tint</label><input id="fogTint" type="color" value="#d5dde2">
+    <label>Opacity: <output id="fogOpacityValue">0.18</output></label><input id="fogOpacity" type="range" min="0" max="1" step="0.01" value="0.18">
+    <label>Patch scale: <output id="fogScaleValue">520</output> px</label><input id="fogScale" type="range" min="160" max="1000" step="10" value="520">
+    <label>Wind direction: <output id="fogDirectionValue">0</output>°</label><input id="fogDirection" type="range" min="0" max="359" step="1" value="0">
+    <label>Wind speed: <output id="fogSpeedValue">0</output> px/s</label><input id="fogSpeed" type="range" min="0" max="80" step="1" value="0">
+    <h2>Visible cloud layers</h2>
+    <p>Each layer uses the same cloud shape with independent size, opacity, tint, and wind for a simple multiplane look. No cloud shadows yet.</p>
+    <label>Selected layer</label><select id="cloudLayerIndex"><option value="0">Cloud layer 1</option><option value="1">Cloud layer 2</option><option value="2">Cloud layer 3</option></select>
+    <label class="inline"><input id="cloudEnabled" type="checkbox"> Enabled</label>
+    <label>Tint</label><input id="cloudTint" type="color" value="#ffffff">
+    <label>Opacity: <output id="cloudOpacityValue">0.22</output></label><input id="cloudOpacity" type="range" min="0" max="0.7" step="0.01" value="0.22">
+    <label>Cloud scale: <output id="cloudScaleValue">650</output> px</label><input id="cloudScale" type="range" min="180" max="1400" step="10" value="650">
+    <label>Wind direction: <output id="cloudDirectionValue">0</output>°</label><input id="cloudDirection" type="range" min="0" max="359" step="1" value="0">
+    <label>Wind speed: <output id="cloudSpeedValue">0</output> px/s</label><input id="cloudSpeed" type="range" min="0" max="100" step="1" value="0">
+  </section>
+  <section id="tabScene" class="tab-panel" role="tabpanel" aria-labelledby="sceneTab">
+    <h2>Minimal lighting and occlusion</h2>
+    <p>Click the room to move the point light.</p>
+    <label>Room ambient: <output id="ambientValue">0.35</output></label>
+    <input id="ambient" type="range" min="0" max="1" step="0.01" value="1">
+    <label class="inline"><input id="pointLightEnabled" type="checkbox"> One movable point light</label>
+    <label class="inline"><input id="crateEnabled" type="checkbox"> Fixed cell occluder</label>
+    <label>Preview</label><select id="preview"><option value="final">Final composition</option><option value="room">Unlit room surface</option></select>
+    <h2>Producer settings</h2>
+    <p>Export/import saves named styles, effect controls, and lighting passes. Technical stream recipes stay in the style library.</p>
+    <div class="row"><button id="exportData">Export JSON</button><button id="applyData">Apply JSON</button></div>
+    <textarea id="sceneData" aria-label="Producer scene JSON"></textarea>
+  </section>
+  <div id="status">Loading packages and textures…</div>
+</aside>
+<main id="stageHost"></main>
+<script type="module">
+import * as PIXI from 'pixi.js';
+import { TopDownLightingPipeline } from '../TopDown/packages/lighting/dist/index.js';
+import { TopDownEffects, TopDownStainSystem } from './packages/particles/dist/index.js';
+
+const WIDTH = 640, HEIGHT = 400, CELL = 40;
+const FALLING_ROOM_STYLES = new Set(['rain','snowfall','hail','ashfall','cinderfall']);
+const LEGACY_ROOM_DEFAULT_LIFETIMES = {rain:1.2,snowfall:2.5,hail:0.575,ashfall:2.15,cinderfall:1.3,'drifting-motes':3.2,'organic-motes':3.4,'oak-leaves':2.8,'maple-leaves':2.8,'oval-leaves':2.8,'mixed-leaves':2.8};
+const GEOMETRY = { widthPx: WIDTH, heightPx: HEIGHT, cellSizePx: CELL };
+const CRATE = { xPx: 350, yPx: 220, sizeXCells: 2, sizeYCells: 2, elevationCells: 1 };
+const $ = id => document.getElementById(id);
+const status = $('status');
+const host = $('stageHost');
+async function loadJson(path) {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`Could not load ${path}.`);
+  return response.json();
+}
+const styleLibrary = await loadJson('./effects/starter-effects.json');
+const roomLibrary = await loadJson('./effects/room-effects.json');
+let scene = await loadJson('./effects/starter-scene.json');
+const STARTER_ACCENTS = JSON.parse(JSON.stringify(scene.accents ?? []));
+const STARTER_STAINS = JSON.parse(JSON.stringify(scene.stains ?? []));
+const styleById = new Map(styleLibrary.styles.map(style => [style.id, style]));
+const roomStyleById = new Map(roomLibrary.styles.map(style => [style.id, style]));
+for (const style of styleLibrary.styles) {
+  if (style.flameStreamIds.length || style.emberStreamIds.length) $('fireStyle').add(new Option(style.label ?? style.id, style.id));
+  if (style.smokeStreamIds.length) $('smokeStyle').add(new Option(`${style.label ?? style.id} smoke`, style.id));
+  if (!style.flameStreamIds.length && !style.emberStreamIds.length && !style.smokeStreamIds.length) $('accentStyle').add(new Option(style.label ?? style.id, style.id));
+}
+for (const style of roomLibrary.styles) $('roomStyle').add(new Option(style.label ?? style.id, style.id));
+for (let index = 1; index <= 3; index++) $('selectedRoomEffect').add(new Option(`Room effect ${index}`, `room-${index}`));
+
+const app = new PIXI.Application();
+await app.init({ resizeTo: host, background: 0x202a35, antialias: true, preference: 'webgl' });
+host.appendChild(app.canvas);
+
+const sourceTextures = {
+  'smoke-puff': await PIXI.Assets.load('./assets/prototype/smoke-puff.png'),
+  'spark-glow': await PIXI.Assets.load('./assets/prototype/spark-glow.png'),
+  'rain-ripple': await PIXI.Assets.load('./assets/prototype/rain-ripple.svg'),
+  'snowflake': await PIXI.Assets.load('./assets/prototype/snowflake.svg'),
+  'fragment': await PIXI.Assets.load('./assets/prototype/fragment.svg'),
+  'rubble-chip': await PIXI.Assets.load('./assets/prototype/rubble-chip.svg'),
+  'soft-mote': await PIXI.Assets.load('./assets/prototype/soft-mote.svg'),
+  'drifting-mote': await PIXI.Assets.load('./assets/prototype/drifting-mote.svg'),
+  'organic-mote': await PIXI.Assets.load('./assets/prototype/organic-mote.svg'),
+  'torch-flame': await PIXI.Assets.load('./assets/prototype/torch-flame.png'),
+  'candle-flame': await PIXI.Assets.load('./assets/prototype/candle-flame.png'),
+  'flame-tip': await PIXI.Assets.load('./assets/prototype/flame-tip.svg'),
+  'candle-smoke': await PIXI.Assets.load('./assets/prototype/candle-smoke.svg'),
+  'leaf-oak': await PIXI.Assets.load('./assets/prototype/leaf-oak.svg'),
+  'leaf-maple': await PIXI.Assets.load('./assets/prototype/leaf-maple.svg'),
+  'leaf-oval': await PIXI.Assets.load('./assets/prototype/leaf-oval.svg'),
+  'fog-field': await PIXI.Assets.load('./assets/prototype/fog-field.svg'),
+  'cloud-field': await PIXI.Assets.load('./assets/prototype/cloud-field.svg'),
+  'stain-splatter-base': await PIXI.Assets.load('./assets/prototype/stain-splatter-base.svg'),
+  'stain-splatter-detail': await PIXI.Assets.load('./assets/prototype/stain-splatter-detail.svg'),
+  'stain-patch-base': await PIXI.Assets.load('./assets/prototype/stain-patch-base.svg'),
+  'stain-patch-detail': await PIXI.Assets.load('./assets/prototype/stain-patch-detail.svg'),
+  'stain-streak-base': await PIXI.Assets.load('./assets/prototype/stain-streak-base.svg'),
+  'stain-streak-detail': await PIXI.Assets.load('./assets/prototype/stain-streak-detail.svg'),
+  'stain-splatter-base-a': await PIXI.Assets.load('./assets/prototype/stain-splatter-base-variant-a.svg'),
+  'stain-splatter-detail-a': await PIXI.Assets.load('./assets/prototype/stain-splatter-detail-variant-a.svg'),
+  'stain-splatter-base-b': await PIXI.Assets.load('./assets/prototype/stain-splatter-base-variant-b.svg'),
+  'stain-splatter-detail-b': await PIXI.Assets.load('./assets/prototype/stain-splatter-detail-variant-b.svg'),
+  'stain-patch-base-a': await PIXI.Assets.load('./assets/prototype/stain-patch-base-variant-a.svg'),
+  'stain-patch-detail-a': await PIXI.Assets.load('./assets/prototype/stain-patch-detail-variant-a.svg'),
+  'stain-patch-base-b': await PIXI.Assets.load('./assets/prototype/stain-patch-base-variant-b.svg'),
+  'stain-patch-detail-b': await PIXI.Assets.load('./assets/prototype/stain-patch-detail-variant-b.svg'),
+  'stain-streak-base-a': await PIXI.Assets.load('./assets/prototype/stain-streak-base-variant-a.svg'),
+  'stain-streak-detail-a': await PIXI.Assets.load('./assets/prototype/stain-streak-detail-variant-a.svg'),
+  'stain-streak-base-b': await PIXI.Assets.load('./assets/prototype/stain-streak-base-variant-b.svg'),
+  'stain-streak-detail-b': await PIXI.Assets.load('./assets/prototype/stain-streak-detail-variant-b.svg'),
+  'stain-spray-streak-a': await PIXI.Assets.load('./assets/prototype/stain-spray-streak-a.svg'),
+  'stain-spray-streak-b': await PIXI.Assets.load('./assets/prototype/stain-spray-streak-b.svg'),
+  'stain-spray-streak-c': await PIXI.Assets.load('./assets/prototype/stain-spray-streak-c.svg')
+};
+// The generated examples have generous transparent margins. These source
+// frames make authored width/height values describe the visible marks.
+const textures = {
+  'smoke-puff': sourceTextures['smoke-puff'],
+  'rain-ripple': sourceTextures['rain-ripple'],
+  'snowflake': sourceTextures['snowflake'],
+  'fragment': sourceTextures['fragment'],
+  'rubble-chip': sourceTextures['rubble-chip'],
+  'soft-mote': sourceTextures['soft-mote'],
+  'drifting-mote': sourceTextures['drifting-mote'],
+  'organic-mote': sourceTextures['organic-mote'],
+  'torch-flame': sourceTextures['torch-flame'],
+  'candle-flame': sourceTextures['candle-flame'],
+  'flame-tip': sourceTextures['flame-tip'],
+  'candle-smoke': sourceTextures['candle-smoke'],
+  'leaf-oak': sourceTextures['leaf-oak'],
+  'leaf-maple': sourceTextures['leaf-maple'],
+  'leaf-oval': sourceTextures['leaf-oval'],
+  'spark-glow': new PIXI.Texture({ source: sourceTextures['spark-glow'].source, frame: new PIXI.Rectangle(470, 460, 340, 340) }),
+  'rain-drop': new PIXI.Texture({ source: sourceTextures['spark-glow'].source, frame: new PIXI.Rectangle(470, 460, 340, 340) })
+};
+const effects = new TopDownEffects({
+  textures: { particles: textures, fog: sourceTextures['fog-field'], clouds: sourceTextures['cloud-field'] },
+  maxParticles: 3000,
+  seed: 73
+});
+effects.setRoomGeometry(GEOMETRY);
+const stains = new TopDownStainSystem({
+  textures: {
+    splatter: {
+      base: sourceTextures['stain-splatter-base'], detail: sourceTextures['stain-splatter-detail'],
+      variants: [
+        { base: sourceTextures['stain-splatter-base-a'], detail: sourceTextures['stain-splatter-detail-a'] },
+        { base: sourceTextures['stain-splatter-base-b'], detail: sourceTextures['stain-splatter-detail-b'] }
+      ]
+    },
+    patch: {
+      base: sourceTextures['stain-patch-base'], detail: sourceTextures['stain-patch-detail'],
+      variants: [
+        { base: sourceTextures['stain-patch-base-a'], detail: sourceTextures['stain-patch-detail-a'] },
+        { base: sourceTextures['stain-patch-base-b'], detail: sourceTextures['stain-patch-detail-b'] }
+      ]
+    },
+    streak: {
+      base: sourceTextures['stain-streak-base'], detail: sourceTextures['stain-streak-detail'],
+      variants: [
+        { base: sourceTextures['stain-streak-base-a'], detail: sourceTextures['stain-streak-detail-a'] },
+        { base: sourceTextures['stain-streak-base-b'], detail: sourceTextures['stain-streak-detail-b'] }
+      ]
+    },
+    'directional-spray': {
+      base: sourceTextures['stain-spray-streak-a'], detail: sourceTextures['stain-spray-streak-b'],
+      streakVariants: [
+        sourceTextures['stain-spray-streak-a'],
+        sourceTextures['stain-spray-streak-b'],
+        sourceTextures['stain-spray-streak-c']
+      ]
+    }
+  },
+  maxStains: 30,
+  onExpire: id => {
+    scene.stains = scene.stains.filter(stain => stain.id !== id);
+    if (selectedStainId === id) selectedStainId = scene.stains[0]?.id ?? null;
+    syncStainControls();
+  }
+});
+for (const effect of styleLibrary.effects) {
+  const metadata = styleById.get(effect.id);
+  if (metadata) effects.registerPointStyle({ ...effect, ...metadata });
+  else effects.registerEffect(effect);
+}
+const allEffects = new Map([...styleLibrary.effects, ...roomLibrary.effects].map(effect => [effect.id, effect]));
+const registeredRoomEffects = new Map();
+for (const style of roomLibrary.styles) {
+  const effect = allEffects.get(style.id);
+  if (!effect) throw new Error(`Missing room effect recipe '${style.id}'.`);
+  registeredRoomEffects.set(style.id, effects.registerRoomEffect({ ...effect, ...style }));
+}
+
+const roomSurface = PIXI.RenderTexture.create({ width: WIDTH, height: HEIGHT, resolution: 1 });
+const lighting = new TopDownLightingPipeline({ renderer: app.renderer, maxLights: 1, maxBlockers: 1 });
+lighting.setRoomTexture({ texture: roomSurface, geometry: GEOMETRY, ownership: 'borrowed' });
+
+const roomContents = new PIXI.Container();
+const floor = new PIXI.Graphics().rect(0, 0, WIDTH, HEIGHT).fill(0x766c5e);
+roomContents.addChild(floor);
+const backgroundSprite = new PIXI.Sprite();
+backgroundSprite.anchor.set(0.5);
+backgroundSprite.visible = false;
+roomContents.addChild(backgroundSprite);
+const grid = new PIXI.Graphics();
+for (let x = 0; x <= WIDTH; x += CELL) grid.moveTo(x, 0).lineTo(x, HEIGHT);
+for (let y = 0; y <= HEIGHT; y += CELL) grid.moveTo(0, y).lineTo(WIDTH, y);
+grid.stroke({ color: 0xd0c1a3, alpha: 0.25, width: 1 });
+roomContents.addChild(grid);
+grid.visible = true;
+roomContents.addChild(stains.preLight);
+const fireMarkers = new Map();
+for (const fire of scene.fires) {
+  const marker = new PIXI.Graphics().circle(0, 0, 2.5).fill(0xffa64c);
+  fireMarkers.set(fire.id, marker);
+  roomContents.addChild(marker);
+}
+const smokeMarkers = new Map();
+for (const smoke of scene.smokes) {
+  const marker = new PIXI.Graphics().circle(0, 0, 3.5).stroke({ color: 0xd3dde0, width: 1 });
+  smokeMarkers.set(smoke.id, marker);
+  roomContents.addChild(marker);
+}
+const accentMarkers = new Map();
+const crateGraphic = new PIXI.Graphics()
+  .roundRect(CRATE.xPx, CRATE.yPx, CRATE.sizeXCells * CELL, CRATE.sizeYCells * CELL, 7)
+  .fill(0x4e6670)
+  .stroke({ color: 0xa5c0c6, width: 2 });
+roomContents.addChild(crateGraphic);
+roomContents.addChild(effects.preLight);
+
+const display = new PIXI.Container();
+display.eventMode = 'static';
+display.hitArea = new PIXI.Rectangle(0, 0, WIDTH, HEIGHT);
+const composedSprite = new PIXI.Sprite(lighting.getOutputs().composedTexture);
+display.addChild(composedSprite);
+display.addChild(effects.postLight);
+display.addChild(stains.postLight);
+app.stage.addChild(display);
+
+let lightPosition = { x: 440, y: 220 };
+let activeTabId = 'tabRoom';
+let selectedRoomEffectId = scene.roomEffects[0].id;
+let selectedFireId = scene.fires[0].id;
+let selectedSmokeId = scene.smokes[0].id;
+let selectedAccentId = scene.accents[0].id;
+let selectedStainId = scene.stains?.[0]?.id ?? null;
+let stimulusSequence = 0;
+let gameTime = 0;
+let paused = false;
+let pendingStep = false;
+let lastStatusTime = 0;
+let elapsedSamples = [];
+let backgroundTexture = null;
+let backgroundObjectUrl = null;
+let backgroundLoadSequence = 0;
+let gridBeforeBackground = true;
+function releaseBackgroundAsset(texture, objectUrl) {
+  if (texture) texture.destroy(true);
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+}
+
+function selectedFire() {
+  return scene.fires.find(fire => fire.id === selectedFireId);
+}
+function selectedSmoke() {
+  return scene.smokes.find(smoke => smoke.id === selectedSmokeId);
+}
+function selectedAccent() {
+  return scene.accents.find(accent => accent.id === selectedAccentId);
+}
+function selectedStain() {
+  return scene.stains.find(stain => stain.id === selectedStainId) ?? null;
+}
+function selectedRoomEffect() {
+  return scene.roomEffects.find(effect => effect.id === selectedRoomEffectId);
+}
+function groupStreams(styleId, group) { const style=styleById.get(styleId), effect=styleLibrary.effects.find(item=>item.id===styleId); const ids=group==='smoke'?style.smokeStreamIds:[...style.flameStreamIds,...style.emberStreamIds]; return effect.streams.filter(stream=>ids.includes(stream.id)); }
+function groupDefaults(styleId, group) { const streams=groupStreams(styleId,group); return {rate:Math.max(1,streams.reduce((n,s)=>n+s.ratePerSecond,0)),size:streams.reduce((n,s)=>n+s.startWidthPx,0)/streams.length,life:streams.reduce((n,s)=>n+(s.lifeMinSeconds+s.lifeMaxSeconds)/2,0)/streams.length}; }
+function defaultSurge(seed) { return {enabled:false,burstCount:8,intervalMinSeconds:2,intervalMaxSeconds:5,seed}; }
+function defaultStain(id, index=0) { return {id,style:'splatter',xPx:Math.min(WIDTH-30,WIDTH/2+index*28),yPx:Math.min(HEIGHT-30,HEIGHT/2+index*20),enabled:true,colors:['#8b2635','#d38b72'],sizePx:120,opacity:0.65,amount:0.6,directionDegrees:25,layer:'pre-light'}; }
+function fillSceneDefaults(value) {
+ if(value.version===1&&!value.smokes&&Array.isArray(value.fires)){value.smokes=value.fires.map((fire,index)=>({id:index?'smoke-b':'smoke-a',style:fire.style,xPx:fire.xPx,yPx:fire.yPx,enabled:fire.enabled,amount:fire.smokeAmount??1,sizeScale:fire.smokeSizeScale??1,radiusPx:fire.radiusPx,speedScale:fire.speedScale,color:fire.smokeColor??styleById.get(fire.style)?.defaultSmokeColor,layer:fire.smokeLayer??styleById.get(fire.style)?.defaultLayers.smoke}));value.version=2;}
+ if(value.version===2&&value.rain){value.roomWind={directionDegrees:0,strengthPxPerSecond:0};value.roomEffects=['rain','snowfall','cinderfall'].map((id,index)=>{const st=roomStyleById.get(id);return{id:'room-'+(index+1),style:id,enabled:index===0?value.rain.enabled:false,emissionRatePerSecond:st.defaultEmissionRatePerSecond,sizePx:st.defaultSizePx,lifetimeSeconds:LEGACY_ROOM_DEFAULT_LIFETIMES[id]??st.defaultLifetimeSeconds,colors:{...st.defaultColors},colorTransitionSeconds:st.defaultColorTransitionSeconds??st.defaultLifetimeSeconds,layer:index===0?value.rain.layer:'style-default'};});delete value.rain;value.version=3;}
+ if(!Array.isArray(value.fires)||!Array.isArray(value.smokes))return;
+ for(const fire of value.fires){const st=styleById.get(fire.style);if(!st)continue;fire.colors??={primary:fire.color??st.defaultColors.primary,secondary:st.defaultColors.secondary};fire.colorTransitionSeconds??=1.2;fire.emissionRatePerSecond??=groupDefaults(fire.style,'flame').rate*(fire.speedScale??1);fire.sizePx??=groupDefaults(fire.style,'flame').size*(fire.sizeScale??1);fire.lifetimeSeconds??=groupDefaults(fire.style,'flame').life/(fire.speedScale??1);fire.surge??=defaultSurge(100+value.fires.indexOf(fire));fire.flameLayer??=st.defaultLayers.flame;fire.embersLayer??=st.defaultLayers.embers;for(const k of ['color','sizeScale','speedScale','smokeAmount','smokeSizeScale','smokeColor','smokeLayer','colorTransitionFraction'])delete fire[k];}
+ for(const smoke of value.smokes){const st=styleById.get(smoke.style);if(!st)continue;smoke.colors??={primary:smoke.color??st.defaultSmokeColors.primary,secondary:st.defaultSmokeColors.secondary};smoke.colorTransitionSeconds??=2.5;smoke.emissionRatePerSecond??=groupDefaults(smoke.style,'smoke').rate*(smoke.amount??1);smoke.sizePx??=groupDefaults(smoke.style,'smoke').size*(smoke.sizeScale??1);smoke.lifetimeSeconds??=groupDefaults(smoke.style,'smoke').life/(smoke.speedScale??1);smoke.surge??=defaultSurge(200+value.smokes.indexOf(smoke));smoke.layer??=st.defaultLayers.smoke;for(const k of ['amount','sizeScale','speedScale','color','colorTransitionFraction'])delete smoke[k];}
+ const styleAliases={'dust-motes':'drifting-motes','magic-motes':'drifting-motes','pollen':'organic-motes','spores':'organic-motes'};
+ for(const effect of value.roomEffects??[]){effect.style=styleAliases[effect.style]??effect.style;const st=roomStyleById.get(effect.style);if(!st)continue;effect.emissionRatePerSecond??=st.defaultEmissionRatePerSecond*(effect.densityScale??1);effect.sizePx??=st.defaultSizePx*(effect.sizeScale??1);effect.lifetimeSeconds??=(LEGACY_ROOM_DEFAULT_LIFETIMES[effect.style]??st.defaultLifetimeSeconds)/(effect.speedScale??1);effect.colorTransitionSeconds??=st.defaultColorTransitionSeconds??st.defaultLifetimeSeconds*(effect.colorTransitionFraction??1);effect.colors??={...st.defaultColors};effect.layer??='style-default';if(effect.style==='rain')effect.streamSizesPx??={drops:3,splash:6};for(const k of ['densityScale','sizeScale','speedScale','colorTransitionFraction'])delete effect[k];}
+ if(value.version<5){const shared=value.roomWind??{directionDegrees:0,strengthPxPerSecond:0};for(const effect of value.roomEffects??[]){effect.windDirectionDegrees??=shared.directionDegrees;effect.windStrengthPxPerSecond??=shared.strengthPxPerSecond;}delete value.roomWind;value.version=5;}
+ if(value.version<6){for(const smoke of value.smokes){smoke.clearRadiusPx??=0;smoke.windDirectionDegrees??=0;smoke.windStrengthPxPerSecond??=0;}value.version=6;}
+ if(value.version<7){for(const effect of value.roomEffects??[])if(effect.style==='rain')effect.streamSizesPx??={drops:3,splash:6};value.version=7;}
+ if(value.version<8){for(const effect of value.roomEffects??[])effect.fallSpeedScale??=1;value.version=8;}
+ if(value.version<9){for(const effect of value.roomEffects??[]){const style=roomStyleById.get(effect.style),recipe=allEffects.get(effect.style),streams=recipe?.streams.filter(stream=>stream.spawn.kind==='room')??[],authoredLife=streams.length?streams.reduce((sum,stream)=>sum+(stream.lifeMinSeconds+stream.lifeMaxSeconds)/2,0)/streams.length:style?.defaultLifetimeSeconds??effect.lifetimeSeconds,legacyDefault=LEGACY_ROOM_DEFAULT_LIFETIMES[effect.style]??style?.defaultLifetimeSeconds??effect.lifetimeSeconds;effect.lifetimeSeconds=Math.round(authoredLife*(effect.lifetimeSeconds/legacyDefault)/(effect.fallSpeedScale??1)*10)/10;delete effect.fallSpeedScale;}value.version=9;}
+ if(value.version<10){value.accents??=JSON.parse(JSON.stringify(STARTER_ACCENTS));value.version=10;}
+ if(value.version<11){const debris=STARTER_ACCENTS.find(accent=>accent.style==='wall-debris');if(debris&&!value.accents.some(accent=>accent.style==='wall-debris'))value.accents.push(JSON.parse(JSON.stringify(debris)));value.version=11;}
+ if(value.version<12){for(const fire of value.fires??[]){const st=styleById.get(fire.style);fire.tipColor??=st?.defaultTipColor??'#fff0b0';}value.version=12;}
+ if(value.version<13){value.atmosphere??={fog:{enabled:false,tint:'#d5dde2',opacity:0.18,scalePx:520,windDirectionDegrees:0,windSpeedPxPerSecond:0},cloudLayers:[0,1,2].map((_,index)=>({enabled:false,tint:'#ffffff',opacity:[0.22,0.16,0.12][index],scalePx:[650,850,1100][index],windDirectionDegrees:0,windSpeedPxPerSecond:0}))};value.version=13;}
+ if(value.version<14){value.stains??=JSON.parse(JSON.stringify(STARTER_STAINS));value.version=14;}
+ value.stains??=[];
+ for(const accent of value.accents??[]){accent.directionDegrees??=0;accent.directionStrengthPxPerSecond??=(accent.style==='pipe-steam'?12:accent.style==='wall-debris'?65:0);if(accent.style==='wall-debris')accent.debrisPiecesPerHit??=3;}
+}
+const validNumber=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
+function validStreamSizes(effect){if(effect.streamSizesPx===undefined)return true;if(!effect.streamSizesPx||typeof effect.streamSizesPx!=='object'||Array.isArray(effect.streamSizesPx))return false;const recipe=allEffects.get(effect.style);return Object.entries(effect.streamSizesPx).every(([id,size])=>{const stream=recipe?.streams.find(item=>item.id===id);const max=id==='drops'?16:id==='splash'?20:40;return !!stream&&validNumber(size,1,max);});}
+function validSurge(s){return s&&typeof s.enabled==='boolean'&&Number.isInteger(s.burstCount)&&s.burstCount>=1&&s.burstCount<=80&&validNumber(s.intervalMinSeconds,.1,60)&&validNumber(s.intervalMaxSeconds,s.intervalMinSeconds,60)&&Number.isInteger(s.seed)&&s.seed>=0&&s.seed<=4294967295;}
+function validateScene(value){const validNumber=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max,validLayer=x=>x==='pre-light'||x==='post-light',validColors=c=>c&&/^#[0-9a-fA-F]{6}$/.test(c.primary)&&/^#[0-9a-fA-F]{6}$/.test(c.secondary);if(value.version!==13||!Array.isArray(value.roomEffects)||value.roomEffects.length!==3||!Array.isArray(value.fires)||value.fires.length<1||value.fires.length>10||!Array.isArray(value.smokes)||value.smokes.length<1||value.smokes.length>10||!Array.isArray(value.accents)||value.accents.length<1||value.accents.length>10)throw new Error('Expected version 13, three room effect slots, and 1–10 sources per point-emitter group.');for(const [list,prefix] of [[value.fires,'fire'],[value.smokes,'smoke'],[value.accents,'accent']]){const ids=new Set(list.map(x=>x.id));if(ids.size!==list.length||list.some(x=>!x.id.startsWith(prefix+'-')))throw new Error('Emitter IDs must be unique.');}for(const e of value.roomEffects){const st=roomStyleById.get(e.style);if(!st||typeof e.enabled!=='boolean'||!validNumber(e.emissionRatePerSecond,0,st.defaultEmissionRatePerSecond*4)||!validNumber(e.sizePx,1,80)||!validStreamSizes(e)||!validNumber(e.lifetimeSeconds,.1,15)||!validNumber(e.windDirectionDegrees,0,359)||!validNumber(e.windStrengthPxPerSecond,0,40)||!validColors(e.colors)||!validNumber(e.colorTransitionSeconds,.1,15)||(e.layer!=='style-default'&&!validLayer(e.layer)))throw new Error('Invalid room effect settings.');}for(const f of value.fires){if(!styleById.has(f.style)||typeof f.enabled!=='boolean'||!validColors(f.colors)||!/^#[0-9a-fA-F]{6}$/.test(f.tipColor)||!validNumber(f.xPx,0,WIDTH)||!validNumber(f.yPx,0,HEIGHT)||!validNumber(f.emissionRatePerSecond,0,500)||!validNumber(f.sizePx,1,80)||!validNumber(f.radiusPx,0,64)||!validNumber(f.lifetimeSeconds,.1,10)||!validNumber(f.colorTransitionSeconds,.1,10)||!validSurge(f.surge)||!validLayer(f.flameLayer)||!validLayer(f.embersLayer))throw new Error('Invalid fire settings: '+f.id);}for(const m of value.smokes){if(!styleById.has(m.style)||typeof m.enabled!=='boolean'||!validColors(m.colors)||!validNumber(m.xPx,0,WIDTH)||!validNumber(m.yPx,0,HEIGHT)||!validNumber(m.emissionRatePerSecond,0,500)||!validNumber(m.sizePx,1,100)||!validNumber(m.radiusPx,0,64)||!validNumber(m.clearRadiusPx,0,m.radiusPx)||!validNumber(m.windDirectionDegrees,0,359)||!validNumber(m.windStrengthPxPerSecond,0,40)||!validNumber(m.lifetimeSeconds,.1,15)||!validNumber(m.colorTransitionSeconds,.1,15)||!validSurge(m.surge)||!validLayer(m.layer))throw new Error('Invalid smoke settings: '+m.id);}for(const a of value.accents){if(!styleById.has(a.style)||typeof a.enabled!=='boolean'||!validColors(a.colors)||!validNumber(a.xPx,0,WIDTH)||!validNumber(a.yPx,0,HEIGHT)||!validNumber(a.emissionRatePerSecond,0,100)||!validNumber(a.sizePx,1,40)||!validNumber(a.radiusPx,0,64)||!validNumber(a.lifetimeSeconds,.1,5)||!validNumber(a.directionDegrees,0,359)||!validNumber(a.directionStrengthPxPerSecond,0,100)||!validSurge(a.surge)||(a.style==='wall-debris'&&(!Number.isInteger(a.debrisPiecesPerHit)||a.debrisPiecesPerHit<1||a.debrisPiecesPerHit>8))||!validLayer(a.layer))throw new Error('Invalid accent settings: '+a.id);}}
+function validateAtmosphere(value){const validField=(f,maxOpacity)=>f&&typeof f.enabled==='boolean'&&/^#[0-9a-fA-F]{6}$/.test(f.tint)&&validNumber(f.opacity,0,maxOpacity)&&validNumber(f.scalePx,160,1400)&&validNumber(f.windDirectionDegrees,0,359)&&validNumber(f.windSpeedPxPerSecond,0,100);if(!value.atmosphere||!validField(value.atmosphere.fog,1)||!Array.isArray(value.atmosphere.cloudLayers)||value.atmosphere.cloudLayers.length!==3||value.atmosphere.cloudLayers.some(f=>!validField(f,0.7)))throw new Error('Invalid atmosphere settings.');}
+function validateCurrentScene(value) {
+  const validNumber=(n,min,max)=>Number.isFinite(n)&&n>=min&&n<=max;
+  const validLayer=x=>x==='pre-light'||x==='post-light';
+  const validColor=c=>typeof c==='string'&&/^#[0-9a-fA-F]{6}$/.test(c);
+  if(value.version!==14||!Array.isArray(value.stains)||value.stains.length>30)throw new Error('Expected scene version 14 with at most 30 surface stains.');
+  const ids=new Set();
+  for(const s of value.stains){
+    const badLife=(s?.lifetimeSeconds!==undefined&&(!validNumber(s.lifetimeSeconds,1,120)||!validNumber(s.fadeOutSeconds??0,0,Math.min(20,s.lifetimeSeconds))))||(s?.fadeOutSeconds!==undefined&&s.lifetimeSeconds===undefined);
+    if(!s||typeof s.id!=='string'||!s.id.startsWith('stain-')||ids.has(s.id)||!['splatter','patch','streak','directional-spray'].includes(s.style)||typeof s.enabled!=='boolean'||!validNumber(s.xPx,0,WIDTH)||!validNumber(s.yPx,0,HEIGHT)||!validNumber(s.sizePx,12,320)||!Array.isArray(s.colors)||s.colors.length<1||s.colors.length>4||!s.colors.every(validColor)||!validNumber(s.opacity,0,1)||!validNumber(s.amount,0,1)||!validNumber(s.directionDegrees,0,359)||!validLayer(s.layer)||badLife)throw new Error('Invalid surface stain settings: '+(s?.id??'unknown'));
+    ids.add(s.id);
+  }
+  const version=value.version;value.version=13;try{validateScene(value);}finally{value.version=version;}
+}
+function fitRoom() {
+  const scale = Math.min(app.screen.width / WIDTH, app.screen.height / HEIGHT);
+  display.scale.set(scale);
+  display.x = (app.screen.width - WIDTH * scale) / 2;
+  display.y = (app.screen.height - HEIGHT * scale) / 2;
+}
+function layoutBackground() {
+  if (!backgroundTexture) return;
+  const mode = $('backgroundFit').value;
+  if (mode === 'stretch') {
+    backgroundSprite.width = WIDTH;
+    backgroundSprite.height = HEIGHT;
+  } else {
+    const containScale = Math.min(WIDTH / backgroundTexture.width, HEIGHT / backgroundTexture.height);
+    const coverScale = Math.max(WIDTH / backgroundTexture.width, HEIGHT / backgroundTexture.height);
+    const scale = mode === 'cover' ? coverScale : containScale;
+    backgroundSprite.width = backgroundTexture.width * scale;
+    backgroundSprite.height = backgroundTexture.height * scale;
+  }
+  backgroundSprite.position.set(WIDTH / 2, HEIGHT / 2);
+}
+async function loadBackgroundImage(file) {
+  const sequence = ++backgroundLoadSequence;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = objectUrl;
+    await image.decode();
+    if (sequence !== backgroundLoadSequence) {
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+    const texture = PIXI.Texture.from(image, true);
+    const previousObjectUrl = backgroundObjectUrl;
+    const previousTexture = backgroundTexture;
+    if (!previousTexture) gridBeforeBackground = $('gridEnabled').checked;
+    backgroundTexture = texture;
+    backgroundObjectUrl = objectUrl;
+    backgroundSprite.texture = texture;
+    backgroundSprite.visible = true;
+    floor.visible = false;
+    grid.visible = false;
+    $('gridEnabled').checked = false;
+    layoutBackground();
+    releaseBackgroundAsset(previousTexture, previousObjectUrl);
+    $('backgroundStatus').textContent = `Loaded: ${file.name}`;
+    status.textContent = `Background loaded: ${file.name}`;
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    if (sequence === backgroundLoadSequence) {
+      $('backgroundStatus').textContent = `Could not load image: ${error.message}`;
+      status.textContent = `Could not load image: ${error.message}`;
+    }
+  }
+}
+function clearBackgroundImage() {
+  backgroundLoadSequence++;
+  backgroundSprite.visible = false;
+  backgroundSprite.texture = PIXI.Texture.EMPTY;
+  floor.visible = true;
+  grid.visible = gridBeforeBackground;
+  $('gridEnabled').checked = gridBeforeBackground;
+  releaseBackgroundAsset(backgroundTexture, backgroundObjectUrl);
+  backgroundTexture = null;
+  backgroundObjectUrl = null;
+  $('backgroundFile').value = '';
+  $('backgroundStatus').textContent = 'Sample grid shown.';
+}
+function markerFor(map,id,isFire){let marker=map.get(id);if(!marker){marker=isFire?new PIXI.Graphics().circle(0,0,2.5).fill(0xffa64c):new PIXI.Graphics().circle(0,0,3.5).stroke({color:0xd3dde0,width:1});map.set(id,marker);roomContents.addChild(marker);}return marker;}
+function accentMarkerFor(id){let marker=accentMarkers.get(id);if(!marker){marker=new PIXI.Graphics().circle(0,0,3).stroke({color:0xbbaaff,width:1});accentMarkers.set(id,marker);roomContents.addChild(marker);}return marker;}
+function syncMarkers(){for(const [list,map,isFire] of [[scene.fires,fireMarkers,true],[scene.smokes,smokeMarkers,false]]){const ids=new Set(list.map(x=>x.id));for(const [id,marker] of map){if(!ids.has(id)){marker.destroy();map.delete(id);}}for(const item of list)markerFor(map,item.id,isFire);}const ids=new Set(scene.accents.map(x=>x.id));for(const [id,marker] of accentMarkers){if(!ids.has(id)){marker.destroy();accentMarkers.delete(id);}}for(const item of scene.accents)accentMarkerFor(item.id);}
+const renderedStainIds = new Set();
+function applyStains(){const currentIds=new Set(scene.stains.map(stain=>stain.id));for(const id of renderedStainIds){if(!currentIds.has(id)){stains.removeStain(id);renderedStainIds.delete(id);}}for(const stain of scene.stains){stains.upsertStain({id:stain.id,style:stain.style,xPx:stain.xPx,yPx:stain.yPx,sizePx:stain.sizePx,colors:stain.colors,opacity:stain.opacity,amount:stain.amount,directionDegrees:stain.directionDegrees,layer:stain.layer,active:stain.enabled,lifetimeSeconds:stain.lifetimeSeconds,fadeOutSeconds:stain.fadeOutSeconds});renderedStainIds.add(stain.id);}}
+function applyEmitters(){
+ for(const e of scene.roomEffects){const baseline=roomStyleById.get(e.style).defaultEmissionRatePerSecond;effects.setRoomEffect({id:e.id,effect:registeredRoomEffects.get(e.style),enabled:e.enabled,intensity:e.emissionRatePerSecond/baseline,sizePx:e.sizePx,rain:e.style==='rain'?{dropSizePx:e.streamSizesPx?.drops,rippleSizePx:e.streamSizesPx?.splash}:undefined,lifetimeSeconds:e.lifetimeSeconds,colors:[e.colors.primary,e.colors.secondary],colorTransitionSeconds:e.colorTransitionSeconds,layer:e.layer,surge:e.surge?.enabled?{burstCount:e.surge.burstCount,intervalMinSeconds:e.surge.intervalMinSeconds,intervalMaxSeconds:e.surge.intervalMaxSeconds,seed:e.surge.seed}:undefined,wind:{directionDegrees:e.windDirectionDegrees,speedPxPerSecond:e.windStrengthPxPerSecond}});}
+ syncMarkers();for(const f of scene.fires){effects.setPointEffect({id:f.id,style:f.style,streamGroup:'flame',xPx:f.xPx,yPx:f.yPx,active:f.enabled,colors:[f.colors.primary,f.colors.secondary,f.tipColor],colorTransitionSeconds:f.colorTransitionSeconds,sizePx:f.sizePx,radiusPx:f.radiusPx,emissionRatePerSecond:f.emissionRatePerSecond,lifetimeSeconds:f.lifetimeSeconds,surge:f.surge.enabled?{burstCount:f.surge.burstCount,intervalMinSeconds:f.surge.intervalMinSeconds,intervalMaxSeconds:f.surge.intervalMaxSeconds,seed:f.surge.seed}:undefined,flameLayer:f.flameLayer,embersLayer:f.embersLayer});const m=markerFor(fireMarkers,f.id,true);m.position.set(f.xPx,f.yPx);m.tint=Number.parseInt(f.colors.primary.slice(1),16);m.visible=f.enabled;}
+ for(const m of scene.smokes){effects.setPointEffect({id:m.id,style:m.style,streamGroup:'smoke',xPx:m.xPx,yPx:m.yPx,active:m.enabled,colors:[m.colors.primary,m.colors.secondary],colorTransitionSeconds:m.colorTransitionSeconds,sizePx:m.sizePx,radiusPx:m.radiusPx,clearRadiusPx:m.clearRadiusPx,windDirectionDegrees:m.windDirectionDegrees,windStrengthPxPerSecond:m.windStrengthPxPerSecond,emissionRatePerSecond:m.emissionRatePerSecond,lifetimeSeconds:m.lifetimeSeconds,surge:m.surge.enabled?{burstCount:m.surge.burstCount,intervalMinSeconds:m.surge.intervalMinSeconds,intervalMaxSeconds:m.surge.intervalMaxSeconds,seed:m.surge.seed}:undefined,smokeLayer:m.layer});const mk=markerFor(smokeMarkers,m.id,false);mk.position.set(m.xPx,m.yPx);mk.visible=m.enabled;}
+ for(const a of scene.accents){effects.setPointEffect({id:a.id,style:a.style,streamGroup:'all',xPx:a.xPx,yPx:a.yPx,active:a.enabled,colors:[a.colors.primary,a.colors.secondary],sizePx:a.sizePx,radiusPx:a.radiusPx,emissionRatePerSecond:a.emissionRatePerSecond,lifetimeSeconds:a.lifetimeSeconds,layer:a.layer,directionDegrees:a.directionDegrees,directionStrengthPxPerSecond:a.style==="pipe-steam"?a.directionStrengthPxPerSecond:0,surge:a.surge.enabled?{burstCount:a.surge.burstCount,intervalMinSeconds:a.surge.intervalMinSeconds,intervalMaxSeconds:a.surge.intervalMaxSeconds,seed:a.surge.seed}:undefined});const mk=accentMarkerFor(a.id);mk.position.set(a.xPx,a.yPx);mk.tint=Number.parseInt(a.colors.primary.slice(1),16);mk.visible=a.enabled;}applyStains();}
+function syncCrate() {
+  crateGraphic.visible = $('crateEnabled').checked;
+  effects.setOccluders(crateGraphic.visible ? [CRATE] : []);
+}
+function setSlider(id,value,unit){const el=$(id);el.value=value;$(id+'Value').textContent=unit==='s'?Number(value).toFixed(1):unit==='fraction'?Number(value).toFixed(2):String(Math.round(value));}
+function refreshEmitterSelect(id,list,selected,prefix){const sel=$(id),current=selected;sel.replaceChildren(...list.map((x,i)=>new Option(prefix+' '+(i+1)+' · '+(styleById.get(x.style).label??x.style),x.id)));sel.value=list.some(x=>x.id===current)?current:list[0].id;}
+function syncControlsFromScene(){const room=selectedRoomEffect(),fire=selectedFire(),smoke=selectedSmoke();refreshEmitterSelect('selectedFire',scene.fires,selectedFireId,'Fire');refreshEmitterSelect('selectedSmoke',scene.smokes,selectedSmokeId,'Smoke');refreshEmitterSelect('selectedAccent',scene.accents,selectedAccentId,'Accent');selectedFireId=$('selectedFire').value;selectedSmokeId=$('selectedSmoke').value;selectedAccentId=$('selectedAccent').value;const accent=selectedAccent();
+ $('selectedRoomEffect').value=selectedRoomEffectId;const rs=roomStyleById.get(room.style);$('roomEnabled').checked=room.enabled;$('roomStyle').value=room.style;$('roomRate').max=String(Math.ceil(rs.defaultEmissionRatePerSecond*4));setSlider('roomRate',room.emissionRatePerSecond,'');$('roomOverallSizeControl').hidden=room.style==='rain';$('rainSizeControls').hidden=room.style!=='rain';if(room.style==='rain'){room.streamSizesPx??={drops:3,splash:6};setSlider('rainDropSize',room.streamSizesPx.drops,'');setSlider('rainSplashSize',room.streamSizesPx.splash,'');}setSlider('roomSize',room.sizePx,'');const edgeFlow=Boolean(rs.edgeFlowStreamIds?.length);$('roomFallDurationHint').hidden=!FALLING_ROOM_STYLES.has(room.style);$('roomLifetimeControls').hidden=edgeFlow;$('roomEdgeFlowHint').hidden=!edgeFlow;setSlider('roomLife',room.lifetimeSeconds,'s');$('roomPrimaryLabel').textContent=rs.colorLabels?.primary??'Primary color';$('roomSecondaryLabel').textContent=rs.colorLabels?.secondary??'Secondary color';$('roomPrimaryColor').value=room.colors.primary;$('roomSecondaryColor').value=room.colors.secondary;setSlider('roomColorTiming',room.colorTransitionSeconds,'s');$('roomColorTimingControls').hidden=!rs.temporalColorStreamIds?.length;$('roomLayer').value=room.layer;
+ $('windDirection').value=room.windDirectionDegrees;$('windDirectionValue').textContent=$('windDirection').value;$('windStrength').value=room.windStrengthPxPerSecond;$('windStrengthValue').textContent=$('windStrength').value;
+ $('fireEnabled').checked=fire.enabled;$('fireStyle').value=fire.style;const fs=styleById.get(fire.style);$('firePrimaryLabel').textContent=fs.colorLabels?.primary??'Primary color';$('fireSecondaryLabel').textContent=fs.colorLabels?.secondary??'Secondary color';$('fireTipColorLabel').textContent=fs.tipColorLabel??'Tip color';$('firePrimaryColor').value=fire.colors.primary;$('fireSecondaryColor').value=fire.colors.secondary;$('fireTipColor').value=fire.tipColor;setSlider('fireColorTiming',fire.colorTransitionSeconds,'s');setSlider('fireRate',fire.emissionRatePerSecond,'');setSlider('fireSize',fire.sizePx,'');setSlider('fireLife',fire.lifetimeSeconds,'s');setSlider('fireRadius',fire.radiusPx,'');$('fireSurgeEnabled').checked=fire.surge.enabled;setSlider('fireSurgeCount',fire.surge.burstCount,'');$('fireSurgeMin').value=fire.surge.intervalMinSeconds;$('fireSurgeMax').value=fire.surge.intervalMaxSeconds;$('fireSurgeSeed').value=fire.surge.seed;$('flameLayer').value=fire.flameLayer;$('embersLayer').value=fire.embersLayer;
+ $('smokeEnabled').checked=smoke.enabled;$('smokeStyle').value=smoke.style;const ss=styleById.get(smoke.style);$('smokePrimaryLabel').textContent=ss.smokeColorLabels?.primary??'Primary color';$('smokeSecondaryLabel').textContent=ss.smokeColorLabels?.secondary??'Secondary color';$('smokePrimaryColor').value=smoke.colors.primary;$('smokeSecondaryColor').value=smoke.colors.secondary;setSlider('smokeColorTiming',smoke.colorTransitionSeconds,'s');setSlider('smokeRate',smoke.emissionRatePerSecond,'');setSlider('smokeSize',smoke.sizePx,'');setSlider('smokeLife',smoke.lifetimeSeconds,'s');setSlider('smokeRadius',smoke.radiusPx,'');$('smokeClearRadius').max=String(smoke.radiusPx);setSlider('smokeClearRadius',smoke.clearRadiusPx,'');$('smokeWindDirection').value=smoke.windDirectionDegrees;$('smokeWindDirectionValue').textContent=$('smokeWindDirection').value;$('smokeWindStrength').value=smoke.windStrengthPxPerSecond;$('smokeWindStrengthValue').textContent=$('smokeWindStrength').value;$('smokeSurgeEnabled').checked=smoke.surge.enabled;setSlider('smokeSurgeCount',smoke.surge.burstCount,'');$('smokeSurgeMin').value=smoke.surge.intervalMinSeconds;$('smokeSurgeMax').value=smoke.surge.intervalMaxSeconds;$('smokeSurgeSeed').value=smoke.surge.seed;$('smokeLayer').value=smoke.layer;
+  $('accentEnabled').checked=accent.enabled;$('accentStyle').value=accent.style;$('accentPrimaryColor').value=accent.colors.primary;$('accentSecondaryColor').value=accent.colors.secondary;setSlider('accentRate',accent.emissionRatePerSecond,'');setSlider('accentSize',accent.sizePx,'');setSlider('accentRadius',accent.radiusPx,'');setSlider('accentLife',accent.lifetimeSeconds,'s');const pipe=accent.style==='pipe-steam',debris=accent.style==='wall-debris',responsiveWind=Boolean(styleById.get(accent.style).windStreamIds?.length);$('accentDirectionControls').hidden=!pipe&&!debris;$('accentDirectionTitle').textContent=pipe?'Pipe outlet direction':'Launch direction';$('accentDirectionStrengthLabel').textContent=pipe?'Push speed':'Launch speed';$('accentDirection').value=accent.directionDegrees;$('accentDirectionValue').textContent=accent.directionDegrees;$('accentDirectionStrength').value=accent.directionStrengthPxPerSecond;$('accentDirectionStrengthValue').textContent=accent.directionStrengthPxPerSecond;$('debrisControls').hidden=!debris;$('accentWindNudgeControls').hidden=!responsiveWind;$('accentContinuousControls').hidden=debris;$('accentSurgeControls').hidden=debris;setSlider('debrisCount',accent.debrisPiecesPerHit??3,'');$('accentSurgeEnabled').checked=accent.surge.enabled;setSlider('accentSurgeCount',accent.surge.burstCount,'');$('accentSurgeMin').value=accent.surge.intervalMinSeconds;$('accentSurgeMax').value=accent.surge.intervalMaxSeconds;$('accentSurgeSeed').value=accent.surge.seed;$('accentLayer').value=accent.layer;}
+function syncStainControls(){const select=$('selectedStain');select.replaceChildren(...scene.stains.map((stain,index)=>new Option(`Stain ${index+1} · ${stain.style}`,stain.id)));if(!scene.stains.some(stain=>stain.id===selectedStainId))selectedStainId=scene.stains[0]?.id??null;select.value=selectedStainId??'';const stain=selectedStain();$('stainControls').hidden=!stain;$('stainEmptyHint').hidden=!!stain;$('removeStain').disabled=!stain;$('clearStains').disabled=!scene.stains.length;$('addStain').disabled=scene.stains.length>=30;if(!stain)return;$('stainEnabled').checked=stain.enabled;$('stainStyle').value=stain.style;$('stainPrimaryColor').value=stain.colors[0];$('stainSecondaryColor').value=stain.colors[1]??stain.colors[0];$('stainSizeLabel').textContent=stain.style==='directional-spray'?'Streak length':'Footprint size';$('stainAmountLabel').textContent=stain.style==='directional-spray'?'Streak density':'Detail amount';setSlider('stainSize',stain.sizePx,'');setSlider('stainOpacity',stain.opacity,'fraction');setSlider('stainAmount',stain.amount,'fraction');$('stainDirectionControls').hidden=stain.style==='patch';$('stainDirection').value=stain.directionDegrees;$('stainDirectionValue').textContent=stain.directionDegrees;const timed=stain.lifetimeSeconds!==undefined;$('stainTimed').checked=timed;$('stainLifetimeControls').hidden=!timed;setSlider('stainLifetime',stain.lifetimeSeconds??20,'s');$('stainFade').max=String(Math.min(20,stain.lifetimeSeconds??20));setSlider('stainFade',stain.fadeOutSeconds??4,'s');$('stainLayer').value=stain.layer;}
+function applyStainControls(){const stain=selectedStain();if(!stain)return;stain.enabled=$('stainEnabled').checked;stain.style=$('stainStyle').value;stain.colors=[$('stainPrimaryColor').value,$('stainSecondaryColor').value];stain.sizePx=+$('stainSize').value;stain.opacity=+$('stainOpacity').value;stain.amount=+$('stainAmount').value;stain.directionDegrees=+$('stainDirection').value;stain.layer=$('stainLayer').value;if($('stainTimed').checked){stain.lifetimeSeconds=+$('stainLifetime').value;stain.fadeOutSeconds=Math.min(+$('stainFade').value,stain.lifetimeSeconds);}else{delete stain.lifetimeSeconds;delete stain.fadeOutSeconds;}applyStains();syncStainControls();}
+function syncAtmosphereControls(){const fog=scene.atmosphere.fog; $('fogEnabled').checked=fog.enabled;$('fogTint').value=fog.tint;setSlider('fogOpacity',fog.opacity,'fraction');setSlider('fogScale',fog.scalePx,'');$('fogDirection').value=fog.windDirectionDegrees;$('fogDirectionValue').textContent=fog.windDirectionDegrees;$('fogSpeed').value=fog.windSpeedPxPerSecond;$('fogSpeedValue').textContent=fog.windSpeedPxPerSecond;const cloud=scene.atmosphere.cloudLayers[+$('cloudLayerIndex').value];$('cloudEnabled').checked=cloud.enabled;$('cloudTint').value=cloud.tint;setSlider('cloudOpacity',cloud.opacity,'fraction');setSlider('cloudScale',cloud.scalePx,'');$('cloudDirection').value=cloud.windDirectionDegrees;$('cloudDirectionValue').textContent=cloud.windDirectionDegrees;$('cloudSpeed').value=cloud.windSpeedPxPerSecond;$('cloudSpeedValue').textContent=cloud.windSpeedPxPerSecond;}
+function applyAtmosphere(){const fog=scene.atmosphere.fog;effects.setRoomEffect({id:'room-fog',effect:'fog',enabled:fog.enabled,intensity:fog.opacity,coveragePx:fog.scalePx,tint:fog.tint,wind:{directionDegrees:fog.windDirectionDegrees,speedPxPerSecond:fog.windSpeedPxPerSecond}});scene.atmosphere.cloudLayers.forEach((field,index)=>effects.setRoomEffect({id:`room-cloud-${index}`,effect:'cloud',enabled:field.enabled,intensity:field.opacity,coveragePx:field.scalePx,tint:field.tint,wind:{directionDegrees:field.windDirectionDegrees,speedPxPerSecond:field.windSpeedPxPerSecond}}));}
+function applyAtmosphereControls(){const fog=scene.atmosphere.fog;fog.enabled=$('fogEnabled').checked;fog.tint=$('fogTint').value;fog.opacity=+$('fogOpacity').value;fog.scalePx=+$('fogScale').value;fog.windDirectionDegrees=+$('fogDirection').value;fog.windSpeedPxPerSecond=+$('fogSpeed').value;const cloud=scene.atmosphere.cloudLayers[+$('cloudLayerIndex').value];cloud.enabled=$('cloudEnabled').checked;cloud.tint=$('cloudTint').value;cloud.opacity=+$('cloudOpacity').value;cloud.scalePx=+$('cloudScale').value;cloud.windDirectionDegrees=+$('cloudDirection').value;cloud.windSpeedPxPerSecond=+$('cloudSpeed').value;applyAtmosphere();syncAtmosphereControls();}
+function applyRoomControls(){const e=selectedRoomEffect();e.enabled=$('roomEnabled').checked;e.emissionRatePerSecond=+$('roomRate').value;e.sizePx=+$('roomSize').value;if(e.style==='rain')e.streamSizesPx={drops:+$('rainDropSize').value,splash:+$('rainSplashSize').value};e.lifetimeSeconds=+$('roomLife').value;e.colors.primary=$('roomPrimaryColor').value;e.colors.secondary=$('roomSecondaryColor').value;e.colorTransitionSeconds=+$('roomColorTiming').value;e.layer=$('roomLayer').value;e.windDirectionDegrees=+$('windDirection').value;e.windStrengthPxPerSecond=+$('windStrength').value;syncControlsFromScene();applyEmitters();}
+function readSurge(prefix,obj){obj.enabled=$(prefix+'SurgeEnabled').checked;obj.burstCount=+$(prefix+'SurgeCount').value;obj.intervalMinSeconds=+$(prefix+'SurgeMin').value;obj.intervalMaxSeconds=+$(prefix+'SurgeMax').value;if(obj.intervalMinSeconds>obj.intervalMaxSeconds){obj.intervalMaxSeconds=obj.intervalMinSeconds;$(prefix+'SurgeMax').value=String(obj.intervalMaxSeconds);}obj.seed=+$(prefix+'SurgeSeed').value;}
+function applyFireControls(){const f=selectedFire();f.enabled=$('fireEnabled').checked;f.colors.primary=$('firePrimaryColor').value;f.colors.secondary=$('fireSecondaryColor').value;f.tipColor=$('fireTipColor').value;f.colorTransitionSeconds=+$('fireColorTiming').value;f.sizePx=+$('fireSize').value;f.radiusPx=+$('fireRadius').value;f.emissionRatePerSecond=+$('fireRate').value;f.lifetimeSeconds=+$('fireLife').value;readSurge('fire',f.surge);f.flameLayer=$('flameLayer').value;f.embersLayer=$('embersLayer').value;syncControlsFromScene();applyEmitters();}
+function applySmokeControls(){const m=selectedSmoke();m.enabled=$('smokeEnabled').checked;m.emissionRatePerSecond=+$('smokeRate').value;m.sizePx=+$('smokeSize').value;m.radiusPx=+$('smokeRadius').value;m.clearRadiusPx=Math.min(+$('smokeClearRadius').value,m.radiusPx);m.windDirectionDegrees=+$('smokeWindDirection').value;m.windStrengthPxPerSecond=+$('smokeWindStrength').value;m.lifetimeSeconds=+$('smokeLife').value;m.colors.primary=$('smokePrimaryColor').value;m.colors.secondary=$('smokeSecondaryColor').value;m.colorTransitionSeconds=+$('smokeColorTiming').value;readSurge('smoke',m.surge);m.layer=$('smokeLayer').value;syncControlsFromScene();applyEmitters();}
+function applyAccentControls(){const a=selectedAccent();a.enabled=$('accentEnabled').checked;a.colors.primary=$('accentPrimaryColor').value;a.colors.secondary=$('accentSecondaryColor').value;a.emissionRatePerSecond=+$('accentRate').value;a.sizePx=+$('accentSize').value;a.radiusPx=+$('accentRadius').value;a.lifetimeSeconds=+$('accentLife').value;a.directionDegrees=+$('accentDirection').value;a.directionStrengthPxPerSecond=+$('accentDirectionStrength').value;a.debrisPiecesPerHit=+$('debrisCount').value;readSurge('accent',a.surge);a.layer=$('accentLayer').value;syncControlsFromScene();applyEmitters();}
+function triggerDebrisStrike(){const a=selectedAccent();if(a.style!=='wall-debris'||!a.enabled)return;effects.sendStimulus({id:`${a.id}-hammer-hit-${++stimulusSequence}`,emitterId:a.id,kind:'burst',count:a.debrisPiecesPerHit??3,xPx:a.xPx,yPx:a.yPx,directionDegrees:a.directionDegrees,speedPxPerSecond:a.directionStrengthPxPerSecond});status.textContent=`Hammer strike sent ${a.debrisPiecesPerHit??3} chips through the burst stimulus interface.`;}
+function sendSmokeWindNudge(){const m=selectedSmoke();if(!m.enabled)return;effects.sendStimulus({id:`${m.id}-wind-${++stimulusSequence}`,emitterId:m.id,kind:'wind',directionDegrees:+$('smokeNudgeDirection').value,speedPxPerSecond:+$('smokeNudgeSpeed').value,durationSeconds:+$('smokeNudgeDuration').value});status.textContent=`Wind nudge sent to ${m.id} for ${$('smokeNudgeDuration').value} seconds.`;}
+function sendAccentWindNudge(){const a=selectedAccent();if(!a.enabled||!styleById.get(a.style).windStreamIds?.length)return;effects.sendStimulus({id:`${a.id}-wind-${++stimulusSequence}`,emitterId:a.id,kind:'wind',directionDegrees:+$('accentNudgeDirection').value,speedPxPerSecond:+$('accentNudgeSpeed').value,durationSeconds:+$('accentNudgeDuration').value});status.textContent=`Wind gust sent to ${a.id} for ${$('accentNudgeDuration').value} seconds.`;}
+
+fillSceneDefaults(scene);
+validateCurrentScene(scene);
+validateAtmosphere(scene);
+selectedStainId=scene.stains[0]?.id??null;
+syncControlsFromScene();
+syncStainControls();
+syncAtmosphereControls();
+$('sceneData').value = JSON.stringify(scene, null, 2);
+applyEmitters();
+applyAtmosphere();
+syncCrate();
+fitRoom();
+new ResizeObserver(fitRoom).observe(host);
+
+const tabButtons = [...document.querySelectorAll('.tab-btn')];
+function activateTab(tabId) {
+  activeTabId = tabId;
+  for (const button of tabButtons) {
+    const active = button.dataset.tab === tabId;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
+  }
+  for (const panel of document.querySelectorAll('.tab-panel')) panel.classList.toggle('active', panel.id === tabId);
+}
+for (const button of tabButtons) {
+  button.addEventListener('click', () => activateTab(button.dataset.tab));
+  button.addEventListener('keydown', event => {
+    const index = tabButtons.indexOf(button);
+    const next = event.key === 'ArrowRight' ? (index + 1) % tabButtons.length
+      : event.key === 'ArrowLeft' ? (index - 1 + tabButtons.length) % tabButtons.length
+      : event.key === 'Home' ? 0 : event.key === 'End' ? tabButtons.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    tabButtons[next].focus();
+    activateTab(tabButtons[next].dataset.tab);
+  });
+}
+activateTab(activeTabId);
+for(const id of ['fogEnabled','fogTint','fogOpacity','fogScale','fogDirection','fogSpeed','cloudEnabled','cloudTint','cloudOpacity','cloudScale','cloudDirection','cloudSpeed'])$(id).addEventListener(id.endsWith('Enabled')?'change':'input',applyAtmosphereControls);
+$('cloudLayerIndex').addEventListener('change',syncAtmosphereControls);
+$('backgroundFile').addEventListener('change',event=>{const file=event.currentTarget.files?.[0];if(file)loadBackgroundImage(file);});
+$('clearBackground').addEventListener('click',clearBackgroundImage);
+$('backgroundFit').addEventListener('change',layoutBackground);
+$('gridEnabled').addEventListener('change',()=>{gridBeforeBackground=$('gridEnabled').checked;grid.visible=$('gridEnabled').checked;});
+
+display.on('pointerdown', event => {
+  const point = display.toLocal(event.global);
+  if (point.x < 0 || point.x > WIDTH || point.y < 0 || point.y > HEIGHT) return;
+  if (activeTabId === 'tabFlame') {
+    selectedFire().xPx = point.x;
+    selectedFire().yPx = point.y;
+    applyEmitters();
+  } else if (activeTabId === 'tabSmoke') {
+    selectedSmoke().xPx = point.x;
+    selectedSmoke().yPx = point.y;
+    applyEmitters();
+  } else if (activeTabId === 'tabAccents') {
+    selectedAccent().xPx = point.x;
+    selectedAccent().yPx = point.y;
+    applyEmitters();
+  } else if (activeTabId === 'tabStains') {
+    const stain = selectedStain();
+    if (stain) { stain.xPx = point.x; stain.yPx = point.y; applyStains(); }
+  } else if (activeTabId === 'tabScene') {
+    lightPosition = { x: point.x, y: point.y };
+  }
+});
+
+$('selectedRoomEffect').addEventListener('change',()=>{selectedRoomEffectId=$('selectedRoomEffect').value;syncControlsFromScene();});
+$('roomStyle').addEventListener('change',()=>{const e=selectedRoomEffect(),old=roomStyleById.get(e.style),st=roomStyleById.get($('roomStyle').value);for(const role of ['primary','secondary'])if(e.colors[role].toLowerCase()===old.defaultColors[role].toLowerCase())e.colors[role]=st.defaultColors[role];if(e.emissionRatePerSecond===old.defaultEmissionRatePerSecond)e.emissionRatePerSecond=st.defaultEmissionRatePerSecond;if(e.sizePx===old.defaultSizePx)e.sizePx=st.defaultSizePx;if(e.lifetimeSeconds===old.defaultLifetimeSeconds)e.lifetimeSeconds=st.defaultLifetimeSeconds;if(e.colorTransitionSeconds===(old.defaultColorTransitionSeconds??old.defaultLifetimeSeconds))e.colorTransitionSeconds=st.defaultColorTransitionSeconds??st.defaultLifetimeSeconds;e.style=st.id;syncControlsFromScene();applyEmitters();});
+for(const id of ['roomRate','roomSize','rainDropSize','rainSplashSize','roomLife','roomPrimaryColor','roomSecondaryColor','roomColorTiming','roomLayer','windDirection','windStrength'])$(id).addEventListener('input',applyRoomControls);$('roomEnabled').addEventListener('change',applyRoomControls);
+$('selectedFire').addEventListener('change',()=>{selectedFireId=$('selectedFire').value;syncControlsFromScene();});$('selectedSmoke').addEventListener('change',()=>{selectedSmokeId=$('selectedSmoke').value;syncControlsFromScene();});
+$('selectedAccent').addEventListener('change',()=>{selectedAccentId=$('selectedAccent').value;syncControlsFromScene();});
+$('selectedStain').addEventListener('change',()=>{selectedStainId=$('selectedStain').value||null;syncStainControls();});
+for(const id of ['stainEnabled','stainStyle','stainPrimaryColor','stainSecondaryColor','stainSize','stainOpacity','stainAmount','stainDirection','stainTimed','stainLifetime','stainFade','stainLayer'])$(id).addEventListener(id==='stainEnabled'||id==='stainTimed'||id==='stainStyle'||id==='stainLayer'?'change':'input',applyStainControls);
+ $('accentStyle').addEventListener('change',()=>{const a=selectedAccent(),old=styleById.get(a.style),st=styleById.get($('accentStyle').value),effect=styleLibrary.effects.find(x=>x.id===st.id),stream=effect.streams[0];for(const role of ['primary','secondary'])if(a.colors[role].toLowerCase()===old.defaultColors[role].toLowerCase())a.colors[role]=st.defaultColors[role];if(a.layer===(effect?.streams[0]?.layer??'pre-light'))a.layer=stream.layer;a.style=st.id;a.emissionRatePerSecond=effect.streams.reduce((sum,x)=>sum+x.ratePerSecond,0);a.sizePx=stream.startWidthPx;a.radiusPx=st.baseRadiusPx;a.lifetimeSeconds=(stream.lifeMinSeconds+stream.lifeMaxSeconds)/2;if(st.id==='pipe-steam'&&a.directionStrengthPxPerSecond===0)a.directionStrengthPxPerSecond=12;if(st.id==='wall-debris'){a.emissionRatePerSecond=0;a.debrisPiecesPerHit??=3;a.directionStrengthPxPerSecond=65;a.surge.enabled=false;}syncControlsFromScene();applyEmitters();});
+$('fireStyle').addEventListener('change',()=>{const f=selectedFire(),old=styleById.get(f.style),st=styleById.get($('fireStyle').value);for(const r of ['primary','secondary'])if(f.colors[r].toLowerCase()===old.defaultColors[r].toLowerCase())f.colors[r]=st.defaultColors[r];if(f.tipColor.toLowerCase()===(old.defaultTipColor??'#fff0b0').toLowerCase())f.tipColor=st.defaultTipColor??'#fff0b0';if(f.flameLayer===old.defaultLayers.flame)f.flameLayer=st.defaultLayers.flame;if(f.embersLayer===old.defaultLayers.embers)f.embersLayer=st.defaultLayers.embers;f.style=st.id;syncControlsFromScene();applyEmitters();});
+$('smokeStyle').addEventListener('change',()=>{const m=selectedSmoke(),old=styleById.get(m.style),st=styleById.get($('smokeStyle').value);for(const r of ['primary','secondary'])if(m.colors[r].toLowerCase()===old.defaultSmokeColors[r].toLowerCase())m.colors[r]=st.defaultSmokeColors[r];if(m.layer===old.defaultLayers.smoke)m.layer=st.defaultLayers.smoke;m.style=st.id;syncControlsFromScene();applyEmitters();});
+for(const id of ['firePrimaryColor','fireSecondaryColor','fireTipColor','fireColorTiming','fireRate','fireSize','fireRadius','fireLife','fireSurgeEnabled','fireSurgeCount','fireSurgeMin','fireSurgeMax','fireSurgeSeed','flameLayer','embersLayer'])$(id).addEventListener('input',applyFireControls);$('fireEnabled').addEventListener('change',applyFireControls);
+for(const id of ['smokeRate','smokeSize','smokeRadius','smokeClearRadius','smokeWindDirection','smokeWindStrength','smokeLife','smokePrimaryColor','smokeSecondaryColor','smokeColorTiming','smokeSurgeEnabled','smokeSurgeCount','smokeSurgeMin','smokeSurgeMax','smokeSurgeSeed','smokeLayer'])$(id).addEventListener('input',applySmokeControls);$('smokeEnabled').addEventListener('change',applySmokeControls);
+for(const id of ['accentRate','accentSize','accentRadius','accentLife','accentDirection','accentDirectionStrength','accentPrimaryColor','accentSecondaryColor','accentSurgeEnabled','accentSurgeCount','accentSurgeMin','accentSurgeMax','accentSurgeSeed','accentLayer','debrisCount'])$(id).addEventListener('input',applyAccentControls);$('accentEnabled').addEventListener('change',applyAccentControls);
+$('debrisStrike').addEventListener('click',triggerDebrisStrike);
+$('sendAccentWindNudge').addEventListener('click',sendAccentWindNudge);for(const [id,out] of [['accentNudgeDirection','accentNudgeDirectionValue'],['accentNudgeSpeed','accentNudgeSpeedValue'],['accentNudgeDuration','accentNudgeDurationValue']])$(id).addEventListener('input',()=>{$(out).textContent=id==='accentNudgeDuration'?Number($(id).value).toFixed(1):$(id).value;});
+$('sendSmokeWindNudge').addEventListener('click',sendSmokeWindNudge);for(const [id,out] of [['smokeNudgeDirection','smokeNudgeDirectionValue'],['smokeNudgeSpeed','smokeNudgeSpeedValue'],['smokeNudgeDuration','smokeNudgeDurationValue']])$(id).addEventListener('input',()=>{$(out).textContent=id==='smokeNudgeDuration'?Number($(id).value).toFixed(1):$(id).value;});
+function addEmitter(kind){const list=kind==='fire'?scene.fires:scene.smokes;if(list.length>=10)return;const template=list[list.length-1],id=kind+'-'+(list.length+1),copy=JSON.parse(JSON.stringify(template));copy.id=id;copy.xPx=60+((list.length*103)%500);copy.yPx=60+((list.length*67)%280);copy.surge.seed=(copy.surge.seed+1)>>>0;list.push(copy);if(kind==='fire')selectedFireId=id;else selectedSmokeId=id;syncControlsFromScene();applyEmitters();}
+function removeEmitter(kind){const list=kind==='fire'?scene.fires:scene.smokes;if(list.length<=1)return;const id=kind==='fire'?selectedFireId:selectedSmokeId;const at=list.findIndex(x=>x.id===id);if(at>=0)list.splice(at,1);if(kind==='fire')selectedFireId=list[Math.max(0,at-1)].id;else selectedSmokeId=list[Math.max(0,at-1)].id;effects.removeEmitter(id);syncControlsFromScene();applyEmitters();}
+$('addFire').addEventListener('click',()=>addEmitter('fire'));$('removeFire').addEventListener('click',()=>removeEmitter('fire'));$('addSmoke').addEventListener('click',()=>addEmitter('smoke'));$('removeSmoke').addEventListener('click',()=>removeEmitter('smoke'));
+function addAccent(){if(scene.accents.length>=10)return;const template=scene.accents[scene.accents.length-1],copy=JSON.parse(JSON.stringify(template));copy.id='accent-'+(scene.accents.length+1);copy.xPx=80+((scene.accents.length*103)%500);copy.yPx=60+((scene.accents.length*67)%300);copy.surge.seed=(copy.surge.seed+1)>>>0;scene.accents.push(copy);selectedAccentId=copy.id;syncControlsFromScene();applyEmitters();}
+function removeAccent(){if(scene.accents.length<=1)return;const id=selectedAccentId,at=scene.accents.findIndex(x=>x.id===id);if(at>=0)scene.accents.splice(at,1);effects.removeEmitter(id);selectedAccentId=scene.accents[Math.max(0,at-1)].id;syncControlsFromScene();applyEmitters();}
+$('addAccent').addEventListener('click',addAccent);$('removeAccent').addEventListener('click',removeAccent);
+function nextStainId(){let index=1;while(scene.stains.some(stain=>stain.id===`stain-${index}`))index++;return`stain-${index}`;}
+function addStain(){if(scene.stains.length>=30)return;const template=selectedStain()??defaultStain(nextStainId(),scene.stains.length),copy=JSON.parse(JSON.stringify(template));copy.id=nextStainId();copy.enabled=true;copy.xPx=Math.min(WIDTH-8,template.xPx+24);copy.yPx=Math.min(HEIGHT-8,template.yPx+18);scene.stains.push(copy);selectedStainId=copy.id;syncStainControls();applyStains();}
+function removeSelectedStain(){const stain=selectedStain();if(!stain)return;scene.stains=scene.stains.filter(item=>item.id!==stain.id);selectedStainId=scene.stains[0]?.id??null;syncStainControls();applyStains();}
+function clearStains(){scene.stains=[];selectedStainId=null;syncStainControls();applyStains();}
+$('addStain').addEventListener('click',addStain);$('removeStain').addEventListener('click',removeSelectedStain);$('clearStains').addEventListener('click',clearStains);
+$('crateEnabled').addEventListener('change', syncCrate);
+$('pause').addEventListener('click', () => { paused = !paused; $('pause').textContent = paused ? 'Resume' : 'Pause'; });
+$('step').addEventListener('click', () => { paused = true; pendingStep = true; $('pause').textContent = 'Resume'; });
+$("reset").addEventListener("click", () => { effects.clear(); effects.setRoomGeometry(GEOMETRY); stains.resetClock(); applyEmitters(); applyAtmosphere(); syncCrate(); gameTime = 0; elapsedSamples = []; });
+$('exportData').addEventListener('click', () => { $('sceneData').value = JSON.stringify(scene, null, 2); });
+$('applyData').addEventListener('click', () => {
+  try {
+    const parsed = JSON.parse($('sceneData').value);
+    fillSceneDefaults(parsed);
+    validateCurrentScene(parsed);
+    validateAtmosphere(parsed);
+    scene = parsed;
+    selectedRoomEffectId=scene.roomEffects.some(x=>x.id===selectedRoomEffectId)?selectedRoomEffectId:scene.roomEffects[0].id;selectedFireId=scene.fires.some(x=>x.id===selectedFireId)?selectedFireId:scene.fires[0].id;selectedSmokeId=scene.smokes.some(x=>x.id===selectedSmokeId)?selectedSmokeId:scene.smokes[0].id;selectedAccentId=scene.accents.some(x=>x.id===selectedAccentId)?selectedAccentId:scene.accents[0].id;selectedStainId=scene.stains.some(x=>x.id===selectedStainId)?selectedStainId:scene.stains[0]?.id??null;
+    syncControlsFromScene();
+    syncStainControls();
+    syncAtmosphereControls();
+    applyEmitters();
+    applyAtmosphere();
+    status.textContent = 'Producer settings imported.';
+  } catch (error) {
+    status.textContent = `Import failed: ${error.message}`;
+  }
+});
+
+app.ticker.add(ticker => {
+  const start = performance.now();
+  if (!paused) gameTime += Math.min(0.1, ticker.deltaMS / 1000);
+  if (pendingStep) { gameTime += 1 / 60; pendingStep = false; }
+  effects.update(gameTime);
+  stains.update(gameTime);
+  app.renderer.render({ container: roomContents, target: roomSurface, clear: true });
+  lighting.submitFrame({
+    roomLighting: { ambient: +$('ambient').value },
+    pointLightDefaults: { radiusPx: 230, intensityScale: 1.15, color: '#fff0c6', outerColor: '#cfdfff', lightHeightCells: 2 },
+    pointLights: $('pointLightEnabled').checked ? [lightPosition] : [],
+    blockers: crateGraphic.visible ? [{ ...CRATE, elevationCells: 1 }] : []
+  });
+  lighting.renderFrame(gameTime);
+  const roomPreview = $('preview').value === 'room';
+  composedSprite.texture = roomPreview ? roomSurface : lighting.getOutputs().composedTexture;
+  effects.postLight.visible = !roomPreview;
+  stains.postLight.visible = !roomPreview;
+  const elapsed = performance.now() - start;
+  elapsedSamples.push(elapsed);
+  if (elapsedSamples.length > 120) elapsedSamples.shift();
+  if (performance.now() - lastStatusTime > 250) {
+    lastStatusTime = performance.now();
+    const stats = effects.getStats();
+    const average = elapsedSamples.reduce((a, b) => a + b, 0) / elapsedSamples.length;
+    $('ambientValue').textContent = (+$('ambient').value).toFixed(2);
+    status.innerHTML = `Live particles: ${stats.liveParticles} · emitted: ${stats.emittedParticles} · dropped: ${stats.droppedParticles}<br>` +
+      `Emitters: ${stats.activeEmitters} · game time: ${gameTime.toFixed(2)} s<br>` +
+      `CPU update + offscreen passes: ${average.toFixed(2)} ms avg · Pixi ticker: ${app.ticker.FPS.toFixed(0)} FPS<br>` +
+      `Room click: ${activeTabId === 'tabRoom' || activeTabId === 'tabAtmosphere' ? 'none' : activeTabId === 'tabScene' ? 'move light' : activeTabId === 'tabSmoke' ? 'move selected smoke' : activeTabId === 'tabAccents' ? 'move selected accent' : activeTabId === 'tabStains' ? 'move selected stain' : activeTabId === 'tabFlame' ? 'move selected flame' : 'none'} · light: ${$('pointLightEnabled').checked ? 'on' : 'off'} · cell occluder: ${crateGraphic.visible ? 'on' : 'off'}`;
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  clearBackgroundImage();
+  effects.dispose();
+  stains.dispose();
+  lighting.dispose();
+  roomSurface.destroy(true);
+  textures['spark-glow'].destroy();
+  sourceTextures['fog-field'].destroy(true);
+  sourceTextures['cloud-field'].destroy(true);
+  textures['rain-drop'].destroy();
+  for (const texture of Object.values(sourceTextures)) texture.destroy(true);
+  app.destroy(true);
+});
+</script>
+</body>
+</html>

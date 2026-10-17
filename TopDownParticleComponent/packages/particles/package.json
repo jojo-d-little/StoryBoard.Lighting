@@ -1,0 +1,31 @@
+{
+  "name": "@jojo-d-little/storyboard-particles",
+  "version": "0.1.0",
+  "description": "Host-driven top-down particle, stain, and atmosphere systems for StoryBoard",
+  "publishConfig": {
+    "@jojo-d-little:registry": "https://npm.pkg.github.com"
+  },
+  "type": "module",
+  "files": ["dist", "README.md", "package.json"],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./advanced": {
+      "types": "./dist/advanced.d.ts",
+      "import": "./dist/advanced.js"
+    }
+  },
+  "peerDependencies": {
+    "pixi.js": ">=8.0.0 <9.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build",
+    "pack:dry-run": "npm pack --dry-run"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "storyboard-particles-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:package",
+    "build:package": "npm --prefix packages/particles run build",
+    "typecheck": "npm --prefix packages/particles run typecheck",
+    "test": "vitest run",
+    "consumer:smoke": "npm run build:package && node programmatic-consumer/smoke.mjs",
+    "consumer:packed-smoke": "node programmatic-consumer/pack-and-smoke.mjs",
+    "dev": "npm --prefix ../TopDown run build:package && npm run build:package && vite --host 127.0.0.1",
+    "pack:package": "npm --prefix packages/particles run pack:dry-run"
+  },
+  "devDependencies": {
+    "pixi.js": "8.21.0",
+    "typescript": "^5.7.3",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  }
+}

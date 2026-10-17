@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="wash" cx="45%" cy="45%" r="62%">
+      <stop stop-color="#fff" stop-opacity=".9"/><stop offset=".55" stop-color="#fff" stop-opacity=".76"/><stop offset=".86" stop-color="#fff" stop-opacity=".38"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-edge"><feGaussianBlur stdDeviation="2.2"/></filter>
+  </defs>
+  <path filter="url(#soft-edge)" fill="url(#wash)" d="M111 49c13-10 31-3 37 9 12-7 27 1 29 14 17 2 24 18 16 31 15 12 10 31-5 37 4 15-8 27-23 25-10 14-27 13-35 0-13 8-29 2-32-12-16-2-22-17-14-29-13-13-8-31 8-36-3-16 7-31 23-30-2-5-4-7-4-9z"/>
+</svg>
