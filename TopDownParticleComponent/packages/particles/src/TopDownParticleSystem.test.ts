@@ -526,6 +526,74 @@ describe("TopDownParticleSystem", () => {
     }
   });
 
+  it("applies advanced styled-stream overrides independently and cannot reactivate smoke", () => {
+    const particles = system();
+    try {
+      const stream = effect.streams[0];
+      particles.registerStyle({
+        id: "advanced-fire", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
+        defaultColors: { primary: "#ffffff", secondary: "#888888" }, baseRadiusPx: 2,
+        colorStreamIds: ["flame", "tip"], flameStreamIds: ["flame", "tip"],
+        smokeStreamIds: ["smoke"], emberStreamIds: [],
+        streams: [
+          { ...stream, id: "flame", ratePerSecond: 60, startWidthPx: 4, startHeightPx: 4, lifeMinSeconds: 1, lifeMaxSeconds: 2 },
+          { ...stream, id: "tip", ratePerSecond: 60, layer: "pre-light", startWidthPx: 4, startHeightPx: 4, lifeMinSeconds: 1, lifeMaxSeconds: 2 },
+          { ...stream, id: "smoke", ratePerSecond: 0, layer: "pre-light" }
+        ]
+      });
+      particles.upsertStyledEmitter({
+        id: "fire", style: "advanced-fire", streamGroup: "flame", xPx: 50, yPx: 50,
+        streamOverrides: {
+          flame: { ratePerSecond: 12, lifeMinSeconds: 0.4, lifeMaxSeconds: 0.8, sizeScale: 2,
+            startColor: "#ff0000", endColor: "#ff8800", startAlpha: 0.8, endAlpha: 0.2, layer: "post-light" },
+          tip: { ratePerSecond: 48, lifeMinSeconds: 2, lifeMaxSeconds: 3, speedScale: 1.5, layer: "pre-light" },
+          smoke: { ratePerSecond: 600, layer: "post-light" }
+        }
+      });
+      particles.update(0);
+      particles.update(0.25);
+      expect(particles.getStats().emittedParticles).toBe(15);
+      expect(particles.getStats().liveParticles).toBe(15);
+      expect((particles.preLight.children[0] as ParticleContainer).particleChildren).toHaveLength(12);
+      expect((particles.postLight.children[0] as ParticleContainer).particleChildren).toHaveLength(3);
+      const flame = (particles.postLight.children[0] as ParticleContainer).particleChildren[0];
+      expect(flame.scaleX).toBe(8);
+      expect(flame.tint).toBeGreaterThan(0xff0000);
+      expect(flame.alpha).toBeLessThanOrEqual(0.8);
+      particles.upsertStyledEmitter({ id: "fire", style: "advanced-fire", streamGroup: "flame", xPx: 50, yPx: 50, active: false });
+      for (const time of [0.5, 0.75, 1, 1.25, 1.5]) particles.update(time);
+      expect(particles.getStats().liveParticles).toBeGreaterThan(0);
+      expect(particles.getStats().liveParticles).toBeLessThan(15);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("restores a styled stream to recipe values when its override is reset", () => {
+    const particles = system();
+    try {
+      particles.registerStyle({
+        id: "reset-fire", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
+        baseRadiusPx: 1, colorStreamIds: ["flame"], flameStreamIds: ["flame"],
+        smokeStreamIds: [], emberStreamIds: [],
+        streams: [{ ...effect.streams[0], id: "flame", ratePerSecond: 60, startWidthPx: 4, startHeightPx: 4 }]
+      });
+      const fire = { id: "fire", style: "reset-fire", streamGroup: "flame" as const, xPx: 20, yPx: 20 };
+      particles.upsertStyledEmitter({ ...fire, streamOverrides: { flame: { ratePerSecond: 0, sizeScale: 3, startColor: "#00ff00" } } });
+      particles.update(0);
+      expect(particles.getStats().emittedParticles).toBe(0);
+      // Clearing the caller's per-style override map is the public reset operation.
+      particles.upsertStyledEmitter(fire);
+      particles.update(0.25);
+      expect(particles.getStats().emittedParticles).toBe(15);
+      const visual = (particles.preLight.children[0] as ParticleContainer).particleChildren[0];
+      expect(visual.scaleX).toBe(4);
+      expect(visual.tint).toBe(0xffffff);
+    } finally {
+      particles.dispose();
+    }
+  });
+
   it("applies a room style's second color and lighting pass to a timed impact", () => {
     const particles = system();
     try {

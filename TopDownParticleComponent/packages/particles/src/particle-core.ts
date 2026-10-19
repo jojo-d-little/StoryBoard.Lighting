@@ -142,6 +142,8 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
     if (source.radiusScale !== undefined) result.radiusScale = nonnegative(source.radiusScale, "radiusScale");
     if (source.innerRadiusPx !== undefined) result.innerRadiusPx = nonnegative(source.innerRadiusPx, "innerRadiusPx");
     if (source.speedScale !== undefined) result.speedScale = positive(source.speedScale, "speedScale");
+    if (source.lifeMinSeconds !== undefined) result.lifeMinSeconds = positive(source.lifeMinSeconds, "lifeMinSeconds");
+    if (source.lifeMaxSeconds !== undefined) result.lifeMaxSeconds = positive(source.lifeMaxSeconds, "lifeMaxSeconds");
     if (source.lifetimeScale !== undefined) result.lifetimeScale = positive(source.lifetimeScale, "lifetimeScale");
     if (source.lifetimeSeconds !== undefined) result.lifetimeSeconds = positive(source.lifetimeSeconds, "lifetimeSeconds");
     if (source.colorTransitionSeconds !== undefined) result.colorTransitionSeconds = positive(source.colorTransitionSeconds, "colorTransitionSeconds");
@@ -150,6 +152,11 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
       result.layer = source.layer;
     }
     if (source.alphaScale !== undefined) result.alphaScale = nonnegative(source.alphaScale, "alphaScale");
+    if (source.startAlpha !== undefined) result.startAlpha = unit(source.startAlpha, "startAlpha");
+    if (source.endAlpha !== undefined) result.endAlpha = unit(source.endAlpha, "endAlpha");
+    if (result.lifeMinSeconds !== undefined && result.lifeMaxSeconds !== undefined && result.lifeMaxSeconds < result.lifeMinSeconds) {
+      throw new RangeError("lifeMaxSeconds must be at least lifeMinSeconds.");
+    }
     if (source.colorTransitionFraction !== undefined) {
       const fraction = positive(source.colorTransitionFraction, "colorTransitionFraction");
       if (fraction < 0.1 || fraction > 1) throw new RangeError("colorTransitionFraction must be in 0.1..1.");

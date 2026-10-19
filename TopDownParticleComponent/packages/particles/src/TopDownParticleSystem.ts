@@ -106,6 +106,8 @@ interface LiveParticle {
   };
   leafFlip?: { firstFlipAtSeconds: number; periodSeconds: number; durationSeconds: number };
   alphaScale: number;
+  startAlpha: number;
+  endAlpha: number;
   startColorRgb: number;
   endColorRgb: number;
   colorTransitionFraction: number;
@@ -447,6 +449,11 @@ export class TopDownParticleSystem {
     const selectedGroupIds = streamGroup === "smoke" ? style.smokeStreamIds
       : streamGroup === "flame" ? new Set([...style.flameStreamIds, ...style.emberStreamIds])
       : new Set(effect.streams.map(stream => stream.id));
+    for (const streamId of Object.keys(input.streamOverrides ?? {})) {
+      if (!effect.streams.some(stream => stream.id === streamId)) {
+        throw new Error(`Unknown stream override '${streamId}' for style '${input.style}'.`);
+      }
+    }
     const sizeReferenceStreams = streamGroup === "smoke"
       ? effect.streams.filter(stream => style.smokeStreamIds.has(stream.id))
       : streamGroup === "flame" ? effect.streams.filter(stream => style.flameStreamIds.has(stream.id))
@@ -539,8 +546,18 @@ export class TopDownParticleSystem {
           (style.colorBindings[stream.id] ?? "transition") === "transition") {
         override.colorTransitionFraction = input.colorTransitionFraction;
       }
+      const advancedOverride = input.streamOverrides?.[stream.id];
+      if (advancedOverride && selectedGroupIds.has(stream.id)) {
+        Object.assign(override, advancedOverride);
+        if ((advancedOverride.lifeMinSeconds !== undefined || advancedOverride.lifeMaxSeconds !== undefined) &&
+            advancedOverride.lifetimeScale === undefined) {
+          // Explicit endpoints replace the shared lifetime scale derived from the simple Fire control.
+          delete override.lifetimeScale;
+        }
+      }
       if ((streamGroup === "flame" && !style.flameStreamIds.has(stream.id) && !style.emberStreamIds.has(stream.id)) ||
           (streamGroup === "smoke" && !style.smokeStreamIds.has(stream.id))) {
+        // Keep group isolation last so advanced settings can never reactivate another group.
         override.ratePerSecond = 0;
       }
       streamOverrides[stream.id] = override;
@@ -563,6 +580,11 @@ export class TopDownParticleSystem {
     if (!effect) throw new Error(`Unknown particle effect '${normalized.effectId}'.`);
     for (const stream of effect.streams) {
       const override = normalized.streamOverrides[stream.id];
+      const lifetimeMin = override?.lifeMinSeconds ?? stream.lifeMinSeconds;
+      const lifetimeMax = override?.lifeMaxSeconds ?? stream.lifeMaxSeconds;
+      if (lifetimeMax < lifetimeMin) {
+        throw new RangeError(`Stream '${stream.id}' lifetime maximum must be at least its minimum.`);
+      }
       if (override?.innerRadiusPx !== undefined) {
         if (stream.spawn.kind !== "point") throw new TypeError("innerRadiusPx only applies to point-spawn streams.");
         const outerRadiusPx = (stream.spawn.radiusPx ?? 0) * (override.radiusScale ?? 1);
@@ -1025,6 +1047,8 @@ export class TopDownParticleSystem {
       skitter,
       leafFlip,
       alphaScale: override?.alphaScale ?? 1,
+      startAlpha: override?.startAlpha ?? stream.startAlpha,
+      endAlpha: override?.endAlpha ?? stream.endAlpha,
       startColorRgb: override?.startColor ? parseHexColor(override.startColor) : stream.startColorRgb,
       endColorRgb: override?.endColor ? parseHexColor(override.endColor) : stream.endColorRgb,
       colorTransitionFraction: override?.colorTransitionFraction ?? 1,
@@ -1039,7 +1063,9 @@ export class TopDownParticleSystem {
       orbitAngleRadians: stream.orbitAngularSpeedRadiansPerSecond ? angle : undefined,
       orbitAngularSpeedRadiansPerSecond: stream.orbitAngularSpeedRadiansPerSecond ? stream.orbitAngularSpeedRadiansPerSecond * speedScale : undefined,
       ageSeconds: 0,
-      lifeSeconds: edgeFlowLifetime ?? override?.lifetimeSeconds ?? this.between(stream.lifeMinSeconds, stream.lifeMaxSeconds) * (override?.lifetimeScale ?? 1) / speedScale
+      lifeSeconds: edgeFlowLifetime ?? override?.lifetimeSeconds ??
+        this.between(override?.lifeMinSeconds ?? stream.lifeMinSeconds, override?.lifeMaxSeconds ?? stream.lifeMaxSeconds) *
+        (override?.lifetimeScale ?? 1) / speedScale
     };
     this.updateVisual(state);
     group.container.addParticle(visual);
@@ -1094,7 +1120,7 @@ export class TopDownParticleSystem {
       : state.colorTransitionSeconds === undefined
         ? t / state.colorTransitionFraction : state.ageSeconds / state.colorTransitionSeconds;
     state.visual.tint = mixColor(state.startColorRgb, state.endColorRgb, colorProgress);
-    const alpha = stream.startAlpha + (stream.endAlpha - stream.startAlpha) * t;
+    const alpha = state.startAlpha + (state.endAlpha - state.startAlpha) * t;
     state.visual.alpha = Math.max(0, Math.min(1, alpha * state.alphaScale * this.cellVisibility(state)));
   }
 

@@ -6,7 +6,7 @@
     "@jojo-d-little:registry": "https://npm.pkg.github.com"
   },
   "type": "module",
-  "files": ["dist", "README.md", "package.json"],
+  "files": ["dist", "assets/default-images", "README.md", "package.json"],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

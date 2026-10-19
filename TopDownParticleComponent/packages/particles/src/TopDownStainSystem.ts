@@ -4,6 +4,13 @@ import type {
   TopDownStainStyle,
   TopDownStainSystemOptions
 } from "./contracts.js";
+import type { TopDownStainTextures } from "./contracts.js";
+import { loadDefaultStainTextures } from "./default-assets.js";
+
+export interface TopDownStainSystemCreateOptions extends Omit<TopDownStainSystemOptions, "textures"> {
+  /** Matching custom style sets replace packaged defaults. */
+  textures?: Partial<TopDownStainTextures>;
+}
 
 interface NormalizedStain extends TopDownStainInput {
   colors: readonly string[];
@@ -69,6 +76,16 @@ export class TopDownStainSystem {
   private readonly stains = new Map<string, StainRuntime>();
   private timeSeconds = 0;
   private disposed = false;
+
+  /** Create a stain system with packaged default textures and optional style overrides. */
+  static async create(options: TopDownStainSystemCreateOptions = {}): Promise<TopDownStainSystem> {
+    const textures = await loadDefaultStainTextures({ stains: options.textures });
+    return new TopDownStainSystem({
+      textures,
+      maxStains: options.maxStains,
+      onExpire: options.onExpire
+    });
+  }
 
   constructor(options: TopDownStainSystemOptions) {
     this.textures = options.textures;

@@ -197,11 +197,17 @@ export interface ParticleStreamOverrides {
   innerRadiusPx?: number;
   /** Multiplies planar velocity and divides lifetime, speeding the full motion. */
   speedScale?: number;
+  /** Replaces the recipe minimum lifetime for particles spawned after this update. */
+  lifeMinSeconds?: number;
+  /** Replaces the recipe maximum lifetime for particles spawned after this update. */
+  lifeMaxSeconds?: number;
   lifetimeScale?: number;
   lifetimeSeconds?: number;
   layer?: ParticleLayer;
   startColor?: string;
   endColor?: string;
+  startAlpha?: number;
+  endAlpha?: number;
   alphaScale?: number;
   /** Fraction of life at which endColor is reached; 1 is the full lifetime. */
   colorTransitionFraction?: number;
@@ -260,6 +266,8 @@ export interface ParticleStyledEmitterInput {
   flameLayer?: ParticleLayer;
   smokeLayer?: ParticleLayer;
   embersLayer?: ParticleLayer;
+  /** Per-stream controls. Applied after shared style controls for streams selected by streamGroup. */
+  streamOverrides?: Record<string, ParticleStreamOverrides>;
 }
 
 /** Producer-facing controls for a room-wide effect instance. */

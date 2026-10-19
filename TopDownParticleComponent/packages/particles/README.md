@@ -7,46 +7,140 @@ renderer, textures, clock, room capture, and final presentation.
 
 ## Integration contract
 
-The host creates the Pixi renderer and loads textures, then constructs one
-`TopDownEffects` controller. The package does not create a renderer, load
-assets, own the game loop, or destroy borrowed textures. Add `preLight` to the
-unlit room pass and `postLight` after the lighting result.
+The host creates the Pixi renderer, then awaits `TopDownEffects.create()` to
+load the package's default effect images and construct one controller. The
+host can override selected images; it does not need to provide its own art.
+The package does not create the renderer or own the game loop. Add `preLight`
+to the unlit room pass and `postLight` after the lighting result.
 
 All positions, sizes, velocities, and room dimensions use pixels in the room
 image, before camera scaling. Time inputs use one monotonic game-time clock in
 seconds. Call `effects.update(timeSeconds)` once per frame. On a room
 transition, set the new geometry and re-submit the authored effects. Call
 `dispose()` when the host removes the controller. The host remains responsible
-for its renderer and textures.
+for its renderer and any custom textures it supplies.
+
+The following is a complete host-side example. `gameEffects` supplies the
+game's rain, fire, and sparks recipes, typed as
+`ParticleRoomStyleDefinition` or `ParticleStyleDefinition`. Those recipes use
+the packaged default texture IDs. The host owns the application, lighting
+pipeline, room capture, and frame loop.
 
 ```ts
-const effects = new TopDownEffects({
-  textures: { particles: particleTextures, fog: fogTexture, clouds: cloudTexture },
-  seed: 7
-});
-effects.setRoomGeometry({ widthPx: 640, heightPx: 400, cellSizePx: 40 });
-const rain = effects.registerRoomEffect(rainRecipe);
+import * as PIXI from "pixi.js";
+import { TopDownLightingPipeline } from "@jojo-d-little/storyboard-lighting";
+import { TopDownEffects } from "@jojo-d-little/storyboard-particles";
+import { gameEffects } from "./gameEffects.js";
 
-// Same request shape for weather particles and texture overlays.
+const widthPx = 640;
+const heightPx = 400;
+const geometry = { widthPx, heightPx, cellSizePx: 40 };
+
+// The host creates Pixi and the lighting pipeline.
+const app = new PIXI.Application();
+await app.init({ width: widthPx, height: heightPx, background: 0x202a35 });
+document.body.appendChild(app.canvas);
+
+const roomSurface = PIXI.RenderTexture.create({ width: widthPx, height: heightPx });
+const lighting = new TopDownLightingPipeline({
+  renderer: app.renderer,
+  maxLights: 1,
+  maxBlockers: 1
+});
+lighting.setRoomTexture({ texture: roomSurface, geometry, ownership: "borrowed" });
+
+// Create the particle controller and register game-authored recipes once.
+const effects = await TopDownEffects.create({ seed: 7 });
+effects.setRoomGeometry(geometry);
+const rain = effects.registerRoomEffect(gameEffects.roomRecipes.rain);
+effects.registerPointStyle(gameEffects.pointRecipes.fire);
+effects.registerPointStyle(gameEffects.pointRecipes.sparks);
+
+// Request room effects. Each cloud ID controls one independently moving layer.
 effects.setRoomEffect({
-  id: "room-rain", effect: rain, intensity: 0.7,
-  sizePx: 6, colors: ["#dceeff", "#91b9dd"],
-  wind: { directionDegrees: 25, speedPxPerSecond: 12 }
+  id: "rain", effect: rain, intensity: 0.7, sizePx: 5,
+  colors: ["#dceeff", "#91b9dd"],
+  wind: { directionDegrees: 20, speedPxPerSecond: 12 }
 });
 effects.setRoomEffect({
-  id: "room-fog", effect: "fog", intensity: 0.2,
-  coveragePx: 520, tint: "#b6c8d8",
-  wind: { directionDegrees: 25, speedPxPerSecond: 5 }
+  id: "fog", effect: "fog", intensity: 0.18, coveragePx: 520,
+  tint: "#b6c8d8"
 });
 effects.setRoomEffect({
-  id: "room-clouds", effect: "cloud", intensity: 0.18,
-  coveragePx: 720, tint: "#ffffff"
+  id: "clouds-far", effect: "cloud", intensity: 0.12, coveragePx: 900,
+  wind: { directionDegrees: 0, speedPxPerSecond: 3 }
+});
+effects.setRoomEffect({
+  id: "clouds-near", effect: "cloud", intensity: 0.2, coveragePx: 620,
+  wind: { directionDegrees: 0, speedPxPerSecond: 9 }
 });
 
-// Every frame: update once, then render these containers in the host passes.
-effects.update(gameTimeSeconds);
-// host draws effects.preLight into the unlit room surface
-// host applies lighting, then draws effects.postLight over the result
+// Request object-attached effects in room-space pixels.
+effects.setPointEffect({
+  id: "hearth-flame", style: "fire", streamGroup: "flame",
+  xPx: 320, yPx: 220, emissionRatePerSecond: 28, sizePx: 12,
+  flameLayer: "post-light"
+});
+effects.setPointEffect({
+  id: "hearth-smoke", style: "fire", streamGroup: "smoke",
+  xPx: 326, yPx: 216, emissionRatePerSecond: 5, sizePx: 16,
+  smokeLayer: "pre-light"
+});
+effects.setPointEffect({
+  id: "torch-sparks", style: "sparks",
+  xPx: 480, yPx: 150, emissionRatePerSecond: 3, sizePx: 5,
+  layer: "post-light"
+});
+
+// Fine-tune a recipe's streams independently; shared controls remain fallbacks.
+effects.setPointEffect({
+  id: "campfire", style: "campfire", streamGroup: "flame",
+  xPx: 320, yPx: 220,
+  streamOverrides: {
+    flame: { ratePerSecond: 24, lifeMinSeconds: 0.7, lifeMaxSeconds: 1.4, sizeScale: 1.1 },
+    tip: { ratePerSecond: 8, lifeMinSeconds: 0.25, lifeMaxSeconds: 0.5,
+      startColor: "#fff3b0", startAlpha: 1, endAlpha: 0, layer: "post-light" },
+    embers: { ratePerSecond: 2, speedScale: 1.3, layer: "pre-light" }
+  }
+});
+// Smoke remains a separate stream group and cannot be enabled by these overrides.
+
+// Put pre-light effects into the room capture rendered by the lighting system.
+const roomContents = new PIXI.Container();
+roomContents.addChild(
+  new PIXI.Graphics().rect(0, 0, widthPx, heightPx).fill(0x766c5e)
+);
+roomContents.addChild(effects.preLight);
+
+// Put post-light effects above the lighting system's composed room image.
+const display = new PIXI.Container();
+const composedRoom = new PIXI.Sprite(lighting.getOutputs().composedTexture);
+display.addChild(composedRoom);
+display.addChild(effects.postLight);
+app.stage.addChild(display);
+
+// Update once per frame, render the unlit room, then apply and display lighting.
+let gameTimeSeconds = 0;
+app.ticker.add((ticker) => {
+  gameTimeSeconds += ticker.deltaMS / 1000;
+  effects.update(gameTimeSeconds);
+
+  app.renderer.render({
+    container: roomContents,
+    target: roomSurface,
+    clear: true
+  });
+
+  lighting.submitFrame({
+    roomLighting: { ambient: 0.25 },
+    pointLightDefaults: { radiusPx: 230, intensityScale: 1.15 },
+    pointLights: [{ x: 440, y: 220 }],
+    blockers: []
+  });
+  lighting.renderFrame(gameTimeSeconds);
+  composedRoom.texture = lighting.getOutputs().composedTexture;
+  // Pixi renders app.stage after the ticker callback; postLight is above the room.
+});
 ```
 
 `intensity` scales a particle recipe's authored emission density or sets an
@@ -55,24 +149,27 @@ texture coverage. `colors`, `tint`, and `wind` describe the visible effect in
 room-space terms. Rain can also set `rain.dropSizePx` and
 `rain.rippleSizePx`. Register recipe definitions once; ordinary callers do not
 construct or choose particle and overlay systems.
-Fog and cloud textures are optional constructor assets when those effects are
-not used; provide both to enable the built-in overlays.
+Fog, cloud, and particle images are included in the package and loaded by the
+factory. To replace selected art, pass overrides; omitted IDs keep their
+packaged defaults:
+
+```ts
+const effects = await TopDownEffects.create({
+  textures: {
+    particles: { "spark-glow": gameSparkTexture },
+    clouds: gameCloudTexture
+  }
+});
+```
+
+`TopDownStainSystem.create()` similarly loads the packaged stain images. The
+lower-level constructors remain available when the host already has full
+texture sets.
 
 Each cloud layer is a separate room effect with its own ID, coverage, opacity,
 and wind speed. Submit multiple cloud requests to create the parallax look; the
 controller supports up to three active cloud layers. Fog has one active room
 slot. Updating a request with the same ID updates that layer.
-
-```ts
-effects.setRoomEffect({
-  id: "clouds-far", effect: "cloud", coveragePx: 900,
-  intensity: 0.12, wind: { directionDegrees: 0, speedPxPerSecond: 3 }
-});
-effects.setRoomEffect({
-  id: "clouds-near", effect: "cloud", coveragePx: 620,
-  intensity: 0.2, wind: { directionDegrees: 0, speedPxPerSecond: 9 }
-});
-```
 
 The package root exports the caller-facing API and recipe types. Direct access
 to `TopDownParticleSystem` and `TopDownAtmosphereSystem` is available from the
@@ -366,3 +463,13 @@ particles.sendStimulus({
 The first implementation supports particle streams, fixed-step updates,
 seeded variation, one-time bursts, cell-based visual occlusion, and a global
 live-particle budget. It does not simulate particle collisions.
+
+The harness Flame tab includes an **Advanced fire streams** panel generated
+from the selected style's flame and ember stream IDs. It shows recipe defaults,
+supports independent live tuning and per-stream reset, and stores overrides per
+fire and style in scene export/import. Unset fields continue to follow the
+simple Fire controls. Explicit per-stream lifetime minimum/maximum replaces the
+shared lifetime scale for that stream. The panel also exposes color timing,
+opacity scale, and planar velocity offsets. Smoke stays in its separate panel.
+Texture, blend mode, draw order, spawn shape, and authored motion ranges require
+rebuilding the technical recipe.

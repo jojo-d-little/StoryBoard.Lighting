@@ -1,8 +1,9 @@
-# Prototype Particle Textures
+# Packaged Default Effect Images
 
-These neutral grayscale textures are initial visual examples for the particle
-harness. They have transparent backgrounds and can be tinted by an effect
-definition. They are not final game art or optimized atlas entries.
+These are the package's default neutral grayscale effect images. They have
+transparent backgrounds and can be tinted by an effect definition. Consumers
+can use them as-is or override selected textures with game-specific art. They
+are not optimized atlas entries.
 
 | File | Intended first use |
 | --- | --- |
@@ -26,9 +27,8 @@ definition. They are not final game art or optimized atlas entries.
 | `organic-mote.svg` | Irregular seed-like grain shared by pollen and spores. |
 | `leaf-oak.svg`, `leaf-maple.svg`, `leaf-oval.svg` | Three distinct falling leaf silhouettes for oak, maple, oval-leaf, and mixed-leaf room recipes. |
 
-The source PNGs are deliberately large. The implementation should prepare
-appropriately sized textures or an atlas before treating performance results
-as representative of the final game.
+The PNGs are deliberately large. Prepare appropriately sized textures or an
+atlas before treating performance results as representative of the final game.
 
 ## Generation
 

@@ -8,9 +8,15 @@ The particle runtime is a standalone npm package named
 `@jojo-d-little/storyboard-particles`. The harness consumes that package
 and the lighting package together.
 
+The package README includes a [complete host integration example](packages/particles/README.md#integration-contract)
+covering recipe registration, room and point effect requests, and pre-light /
+post-light rendering order.
+
 Implementation starts with the [particle component prototype plan](../plans/ParticleComponentPrototypePlan.md).
 
-Initial generated visual examples are in [`assets/prototype/`](assets/prototype/).
+The package ships its [default effect images](packages/particles/assets/default-images/README.md)
+and loads them automatically through the `TopDownEffects.create()` and
+`TopDownStainSystem.create()` factories. Callers can override selected textures.
 
 ## Run the prototype
 
@@ -91,7 +97,7 @@ shadows or alter lighting. These continuous overlays share the particle npm
 package but do not use its particle streams. Atmosphere configuration is saved
 with the producer scene.
 
-The producer scene format is version 14 with `roomEffects`, `fires`, `smokes`, `accents`, `atmosphere`, and `stains`
+The producer scene format is version 15 with `roomEffects`, `fires`, `smokes`, `accents`, `atmosphere`, and `stains`
 arrays. The harness migrates older versions, converting the old rain setting
 to the first room slot, copying legacy shared wind settings into each room slot,
 and converting old scalar controls to explicit units. Rain stores separate

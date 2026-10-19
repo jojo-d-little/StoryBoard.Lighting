@@ -50,6 +50,42 @@ describe("TopDownEffects public facade", () => {
     }
   });
 
+  it("exposes independent fire stream overrides through setPointEffect", () => {
+    const effects = makeEffects();
+    try {
+      effects.setRoomGeometry(geometry);
+      effects.registerPointStyle({
+        id: "api-fire", defaultColor: "#ffffff", defaultSmokeColor: "#888888", baseRadiusPx: 2,
+        colorStreamIds: ["flame"], flameStreamIds: ["flame"], emberStreamIds: [], smokeStreamIds: ["smoke"],
+        streams: [
+          { id: "flame", textureId: "dot", layer: "pre-light", ratePerSecond: 60,
+            spawn: { kind: "point", radiusPx: 2 }, lifeMinSeconds: 1, lifeMaxSeconds: 2,
+            velocityXMinPxPerSecond: 0, velocityXMaxPxPerSecond: 0,
+            velocityYMinPxPerSecond: 0, velocityYMaxPxPerSecond: 0,
+            startWidthPx: 4, startHeightPx: 4, startColor: "#ffffff" },
+          { id: "smoke", textureId: "dot", layer: "pre-light", ratePerSecond: 0,
+            spawn: { kind: "point", radiusPx: 2 }, lifeMinSeconds: 1, lifeMaxSeconds: 2,
+            velocityXMinPxPerSecond: 0, velocityXMaxPxPerSecond: 0,
+            velocityYMinPxPerSecond: 0, velocityYMaxPxPerSecond: 0,
+            startWidthPx: 4, startHeightPx: 4, startColor: "#888888" }
+        ]
+      });
+      effects.setPointEffect({
+        id: "fire", style: "api-fire", streamGroup: "flame", xPx: 100, yPx: 100,
+        streamOverrides: {
+          flame: { ratePerSecond: 12, lifeMinSeconds: 0.5, lifeMaxSeconds: 0.9,
+            startColor: "#ff0000", layer: "post-light" },
+          smoke: { ratePerSecond: 500, layer: "post-light" }
+        }
+      });
+      effects.update(0);
+      effects.update(0.25);
+      expect(effects.getStats().emittedParticles).toBe(3);
+    } finally {
+      effects.dispose();
+    }
+  });
+
   it("allocates three independent cloud slots and frees a slot when a layer is removed", () => {
     const effects = makeEffects();
     try {

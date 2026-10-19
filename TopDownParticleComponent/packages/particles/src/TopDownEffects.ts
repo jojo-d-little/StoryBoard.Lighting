@@ -2,6 +2,8 @@ import { Container } from "pixi.js";
 import { TopDownAtmosphereSystem } from "./TopDownAtmosphereSystem.js";
 import type { AtmosphereFieldInput, TopDownAtmosphereSystemOptions } from "./TopDownAtmosphereSystem.js";
 import { TopDownParticleSystem } from "./TopDownParticleSystem.js";
+import { loadDefaultParticleAssets } from "./default-assets.js";
+import type { DefaultParticleAssetOverrides } from "./default-assets.js";
 import type {
   ParticleBurstInput,
   ParticleEffectDefinition,
@@ -79,6 +81,12 @@ export interface TopDownEffectsOptions {
   seed?: number;
 }
 
+/** Options for the async factory that loads this package's default images. */
+export interface TopDownEffectsCreateOptions extends Omit<TopDownEffectsOptions, "textures"> {
+  /** Matching custom textures override packaged defaults; omitted entries use package art. */
+  textures?: DefaultParticleAssetOverrides;
+}
+
 /**
  * Caller-facing effect controller. Register recipes once, then configure
  * point effects and room effects without selecting their rendering systems.
@@ -93,6 +101,16 @@ export class TopDownEffects {
   private readonly cloudSlots = new Map<string, number>();
   private fogId: string | null = null;
   private disposed = false;
+
+  /** Create a controller with packaged default art and optional per-image overrides. */
+  static async create(options: TopDownEffectsCreateOptions = {}): Promise<TopDownEffects> {
+    const textures = await loadDefaultParticleAssets(options.textures);
+    return new TopDownEffects({
+      textures,
+      maxParticles: options.maxParticles,
+      seed: options.seed
+    });
+  }
 
   constructor(options: TopDownEffectsOptions) {
     this.particleSystem = new TopDownParticleSystem({

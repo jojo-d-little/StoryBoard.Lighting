@@ -6,9 +6,17 @@ export type {
   RoomEffectName,
   ParticleRoomEffectInput,
   RoomOverlayEffectInput,
-  TopDownEffectsOptions
+  TopDownEffectsOptions,
+  TopDownEffectsCreateOptions
 } from "./TopDownEffects.js";
 export { TopDownStainSystem } from "./TopDownStainSystem.js";
+export type { TopDownStainSystemCreateOptions } from "./TopDownStainSystem.js";
+export { loadDefaultParticleAssets, loadDefaultStainTextures } from "./default-assets.js";
+export type {
+  DefaultParticleAssetOverrides,
+  DefaultStainTextureOverrides,
+  DefaultParticleAssets
+} from "./default-assets.js";
 export type {
   TopDownStainInput,
   TopDownStainStyle,
@@ -32,5 +40,6 @@ export type {
   ParticleStreamDefinition,
   ParticleStyleDefinition,
   ParticleStyledEmitterInput,
+  ParticleStreamOverrides,
   ParticleSurgeInput
 } from "./contracts.js";
