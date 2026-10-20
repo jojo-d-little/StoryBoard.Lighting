@@ -6,6 +6,12 @@ import type {
 } from "./contracts.js";
 import type { TopDownStainTextures } from "./contracts.js";
 import { loadDefaultStainTextures } from "./default-assets.js";
+import type { RenderOrderCoordinator } from "./RenderOrderCoordinator.js";
+
+interface StainRenderOptions {
+  renderLayers?: { "pre-light": Container; "post-light": Container };
+  orderCoordinator?: RenderOrderCoordinator;
+}
 
 export interface TopDownStainSystemCreateOptions extends Omit<TopDownStainSystemOptions, "textures"> {
   /** Matching custom style sets replace packaged defaults. */
@@ -13,6 +19,7 @@ export interface TopDownStainSystemCreateOptions extends Omit<TopDownStainSystem
 }
 
 interface NormalizedStain extends TopDownStainInput {
+  order: number;
   colors: readonly string[];
   opacity: number;
   amount: number;
@@ -67,15 +74,18 @@ const DIRECTIONAL_SPRAY_MAX_STREAKS = 10;
  * lifetime expires. The host owns the renderer, textures, and game clock.
  */
 export class TopDownStainSystem {
-  readonly preLight = new Container();
-  readonly postLight = new Container();
+  readonly preLight: Container;
+  readonly postLight: Container;
 
   private readonly textures: TopDownStainSystemOptions["textures"];
   private readonly maxStains: number;
   private readonly onExpire?: (id: string) => void;
   private readonly stains = new Map<string, StainRuntime>();
+  private capacityFailures = 0;
   private timeSeconds = 0;
   private disposed = false;
+  private readonly ownsRenderLayers: boolean;
+  private readonly orderCoordinator?: RenderOrderCoordinator;
 
   /** Create a stain system with packaged default textures and optional style overrides. */
   static async create(options: TopDownStainSystemCreateOptions = {}): Promise<TopDownStainSystem> {
@@ -87,7 +97,11 @@ export class TopDownStainSystem {
     });
   }
 
-  constructor(options: TopDownStainSystemOptions) {
+  constructor(options: TopDownStainSystemOptions & StainRenderOptions) {
+    this.ownsRenderLayers = options.renderLayers === undefined;
+    this.preLight = options.renderLayers?.["pre-light"] ?? new Container();
+    this.postLight = options.renderLayers?.["post-light"] ?? new Container();
+    this.orderCoordinator = options.orderCoordinator;
     this.textures = options.textures;
     this.maxStains = options.maxStains ?? DEFAULT_MAX_STAINS;
     this.onExpire = options.onExpire;
@@ -111,6 +125,7 @@ export class TopDownStainSystem {
     const normalized = normalizeStain(input);
     const previous = this.stains.get(normalized.id);
     if (!previous && this.stains.size >= this.maxStains) {
+      this.capacityFailures++;
       throw new RangeError(`Stain capacity (${this.maxStains}) has been reached.`);
     }
 
@@ -123,6 +138,7 @@ export class TopDownStainSystem {
     else if (!previous) state.createdAtSeconds = this.timeSeconds;
     this.applyRuntime(state);
     this.stains.set(normalized.id, state);
+    if (!this.orderCoordinator) this.sortStains();
   }
 
   removeStain(id: string): boolean {
@@ -138,6 +154,17 @@ export class TopDownStainSystem {
     this.ensureActive();
     for (const state of this.stains.values()) this.destroyRuntime(state);
     this.stains.clear();
+    this.capacityFailures = 0;
+  }
+
+  getStainCount(): number {
+    this.ensureActive();
+    return this.stains.size;
+  }
+
+  getCapacityFailureCount(): number {
+    this.ensureActive();
+    return this.capacityFailures;
   }
 
   getStainIds(): string[] {
@@ -178,8 +205,10 @@ export class TopDownStainSystem {
   dispose(): void {
     if (this.disposed) return;
     this.clear();
-    this.preLight.destroy({ children: true });
-    this.postLight.destroy({ children: true });
+    if (this.ownsRenderLayers) {
+      this.preLight.destroy({ children: true });
+      this.postLight.destroy({ children: true });
+    }
     this.disposed = true;
   }
 
@@ -223,6 +252,7 @@ export class TopDownStainSystem {
     const secondary = input.colors[1] ?? primary;
     const nextLayer = input.layer === "pre-light" ? this.preLight : this.postLight;
     if (container.parent !== nextLayer) nextLayer.addChild(container);
+    this.orderCoordinator?.register(input.id, input.order, input.layer, 0, container);
     // The spray texture is authored to fan rightward from its left edge, so
     // x/y identifies the source and the group extends forward from that point.
     const sourceOffset = input.style === "directional-spray" && sprayStrokes.length === 0 ? input.sizePx / 2 : 0;
@@ -291,8 +321,19 @@ export class TopDownStainSystem {
   }
 
   private destroyRuntime(state: StainRuntime): void {
+    this.orderCoordinator?.remove(state.container);
     state.container.removeFromParent();
     state.container.destroy({ children: true });
+  }
+
+  private sortStains(): void {
+    for (const layer of ["pre-light", "post-light"] as const) {
+      const parent = layer === "pre-light" ? this.preLight : this.postLight;
+      const ordered = [...this.stains.values()].filter(stain => stain.input.layer === layer).sort((a, b) =>
+        a.input.order - b.input.order || (a.input.id < b.input.id ? -1 : a.input.id > b.input.id ? 1 : 0)
+      );
+      ordered.forEach((stain, index) => parent.setChildIndex(stain.container, index));
+    }
   }
 
   private ensureActive(): void {
@@ -351,6 +392,8 @@ function normalizeStain(input: TopDownStainInput): NormalizedStain {
   if (!Number.isFinite(input.sizePx) || input.sizePx <= 0) {
     throw new RangeError("Stain sizePx must be positive and finite.");
   }
+  const order = input.order ?? 0;
+  if (!Number.isFinite(order)) throw new RangeError("Stain order must be finite.");
   const opacity = input.opacity ?? 1;
   const amount = input.amount ?? 1;
   const directionDegrees = input.directionDegrees ?? 0;
@@ -384,7 +427,7 @@ function normalizeStain(input: TopDownStainInput): NormalizedStain {
   if (input.lifetimeSeconds !== undefined && (input.fadeOutSeconds ?? 0) > input.lifetimeSeconds) {
     throw new RangeError("Stain fadeOutSeconds cannot exceed lifetimeSeconds.");
   }
-  return { ...input, colors, opacity, amount, directionDegrees, layer, active: input.active ?? true };
+  return { ...input, order, colors, opacity, amount, directionDegrees, layer, active: input.active ?? true };
 }
 
 function parseHex(color: string): number {

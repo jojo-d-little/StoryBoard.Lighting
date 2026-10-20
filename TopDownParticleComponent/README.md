@@ -15,8 +15,9 @@ post-light rendering order.
 Implementation starts with the [particle component prototype plan](../plans/ParticleComponentPrototypePlan.md).
 
 The package ships its [default effect images](packages/particles/assets/default-images/README.md)
-and loads them automatically through the `TopDownEffects.create()` and
-`TopDownStainSystem.create()` factories. Callers can override selected textures.
+and loads them automatically through the `TopDownEffects.create()` factory,
+including stain art. Callers can override
+selected textures and manage stains through the shared effects controller.
 
 ## Run the prototype
 
@@ -53,7 +54,7 @@ The harness loads game-owned style recipes from
 [`effects/starter-effects.json`](effects/starter-effects.json) and producer
 settings from [`effects/starter-scene.json`](effects/starter-scene.json).
 It shows the original campfire beside a focused torch and a small candle flame. Controls are grouped in
-Room, Flame, Smoke, Accents, Surface Stains, Fog & Clouds, and Lighting & Data tabs. Room has three independent slots
+Room, Flame, Smoke, Accents, Surface Stains, Fog & Clouds, and Lighting & Data tabs. Room effects can be added as independent instances
 that can each select Rain, Snowfall, Hail, Ashfall, Cinderfall, Drifting Motes,
 Organic Motes, or one of four falling-leaf recipes. Leaves enter from the upwind
 room edge and cross the room; other room effects retain their usual room
@@ -63,7 +64,7 @@ underside color. Oak, maple, and oval leaf shapes can be selected individually
 or mixed together; each effect has independent wind direction and strength. Drifting
 Motes has a distinct glint sprite and covers dust and magic-colored motes.
 Organic Motes has a seed-like sprite and covers pollen and spores.
-Each slot tunes emission rate in particles per second, size in room pixels,
+Each room instance tunes emission rate in particles per second, render order, size in room pixels,
 lifetime and color transition in seconds, two colors, and lighting treatment.
 Rain has separate pixel controls for falling drops and landing ripples.
 Increasing Rain's wind strength also lengthens the drops along the wind; the
@@ -90,12 +91,16 @@ Stream recipes, textures, and blend modes remain in the style library.
 Export/import uses the producer settings. The sample light is configured
 independently.
 
-The Fog & Clouds tab prototypes a separate texture-overlay path for room fog
-and up to three visible cloud layers. The overlays have independent opacity,
-scale, tint, and wind; they render after the light composition and do not cast
-shadows or alter lighting. These continuous overlays share the particle npm
-package but do not use its particle streams. Atmosphere configuration is saved
-with the producer scene.
+The Fog & Clouds tab prototypes separately identified fog and cloud overlays.
+Add layers to check independent opacity, scale, tint, order, and wind; they
+render after the light composition and do not cast shadows or alter lighting.
+These continuous overlays share the particle npm package but do not use its
+particle streams. Atmosphere configuration is saved with the producer scene.
+
+The harness can also add room-effect instances, including multiple instances of
+the same recipe. Its live setting transition control eases supported manual
+edits from the displayed value; set it to 0 for immediate changes. Color edit
+behavior selects birth-snapshot or living-particle retint.
 
 The producer scene format is version 15 with `roomEffects`, `fires`, `smokes`, `accents`, `atmosphere`, and `stains`
 arrays. The harness migrates older versions, converting the old rain setting

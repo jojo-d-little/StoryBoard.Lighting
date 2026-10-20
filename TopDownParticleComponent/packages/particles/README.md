@@ -57,43 +57,43 @@ effects.registerPointStyle(gameEffects.pointRecipes.fire);
 effects.registerPointStyle(gameEffects.pointRecipes.sparks);
 
 // Request room effects. Each cloud ID controls one independently moving layer.
-effects.setRoomEffect({
+effects.upsert({ kind: "room", input: {
   id: "rain", effect: rain, intensity: 0.7, sizePx: 5,
   colors: ["#dceeff", "#91b9dd"],
   wind: { directionDegrees: 20, speedPxPerSecond: 12 }
-});
-effects.setRoomEffect({
+}});
+effects.upsert({ kind: "room", input: {
   id: "fog", effect: "fog", intensity: 0.18, coveragePx: 520,
   tint: "#b6c8d8"
-});
-effects.setRoomEffect({
+}});
+effects.upsert({ kind: "room", input: {
   id: "clouds-far", effect: "cloud", intensity: 0.12, coveragePx: 900,
   wind: { directionDegrees: 0, speedPxPerSecond: 3 }
-});
-effects.setRoomEffect({
+}});
+effects.upsert({ kind: "room", input: {
   id: "clouds-near", effect: "cloud", intensity: 0.2, coveragePx: 620,
   wind: { directionDegrees: 0, speedPxPerSecond: 9 }
-});
+}});
 
 // Request object-attached effects in room-space pixels.
-effects.setPointEffect({
+effects.upsert({ kind: "point", input: {
   id: "hearth-flame", style: "fire", streamGroup: "flame",
   xPx: 320, yPx: 220, emissionRatePerSecond: 28, sizePx: 12,
   flameLayer: "post-light"
-});
-effects.setPointEffect({
+}});
+effects.upsert({ kind: "point", input: {
   id: "hearth-smoke", style: "fire", streamGroup: "smoke",
   xPx: 326, yPx: 216, emissionRatePerSecond: 5, sizePx: 16,
   smokeLayer: "pre-light"
-});
-effects.setPointEffect({
+}});
+effects.upsert({ kind: "point", input: {
   id: "torch-sparks", style: "sparks",
   xPx: 480, yPx: 150, emissionRatePerSecond: 3, sizePx: 5,
   layer: "post-light"
-});
+}});
 
 // Fine-tune a recipe's streams independently; shared controls remain fallbacks.
-effects.setPointEffect({
+effects.upsert({ kind: "point", input: {
   id: "campfire", style: "campfire", streamGroup: "flame",
   xPx: 320, yPx: 220,
   streamOverrides: {
@@ -102,7 +102,7 @@ effects.setPointEffect({
       startColor: "#fff3b0", startAlpha: 1, endAlpha: 0, layer: "post-light" },
     embers: { ratePerSecond: 2, speedScale: 1.3, layer: "pre-light" }
   }
-});
+}});
 // Smoke remains a separate stream group and cannot be enabled by these overrides.
 
 // Put pre-light effects into the room capture rendered by the lighting system.
@@ -162,14 +162,18 @@ const effects = await TopDownEffects.create({
 });
 ```
 
-`TopDownStainSystem.create()` similarly loads the packaged stain images. The
-lower-level constructors remain available when the host already has full
-texture sets.
+`TopDownEffects.create()` also loads packaged stain images. Add an optional
+`stainTextures` override to replace selected stain styles, or pass complete
+`textures.stains` to the synchronous constructor. Stains use the same
+`effects.upsert({ kind: "stain", input })`, `remove(id)`, `update(timeSeconds)`,
+and lighting-pass containers as particles and overlays. Attached stains have
+no package expiry timer; remove the owning effect to clear them.
 
-Each cloud layer is a separate room effect with its own ID, coverage, opacity,
-and wind speed. Submit multiple cloud requests to create the parallax look; the
-controller supports up to three active cloud layers. Fog has one active room
-slot. Updating a request with the same ID updates that layer.
+Each fog or cloud field is a separate room effect with its own ID, order,
+coverage, opacity, and wind speed. Any number can coexist. Updating a request
+with the same ID updates that field, and removing the ID removes only that
+field. Overlay offsets accumulate from frame-to-frame velocity, so changing
+wind direction or speed does not reposition a tile.
 
 The package root exports the caller-facing API and recipe types. Direct access
 to `TopDownParticleSystem` and `TopDownAtmosphereSystem` is available from the
@@ -177,8 +181,9 @@ explicit `@jojo-d-little/storyboard-particles/advanced` entry point.
 
 The root API includes these contracts:
 
-- **Effect requests:** `RoomEffectInput`, `ParticleStyledEmitterInput`, and
-  `TopDownStainInput` describe room, point, and surface effects.
+- **Effect requests:** `TopDownEffectInput` discriminates point, room, and
+  persistent stain requests for the shared ID lifecycle. The focused
+  `RoomEffectInput` and `ParticleStyledEmitterInput` methods remain available.
 - **Recipe contracts:** `ParticleStyleDefinition`,
   `ParticleRoomStyleDefinition`, and `ParticleEffectDefinition` let the game
   register its named effect recipes.
@@ -186,9 +191,22 @@ The root API includes these contracts:
 Style and stream definitions are serializable data; runtime options containing
 Pixi textures are host objects and should not be persisted.
 
+Set optional `removalDurationMs` on a registered recipe to choose how an
+instance stops: omitted or `null` stops emission and lets living particles
+finish their authored lifetimes, `0` clears its particles immediately, and a
+positive value fades its surviving particles over that duration. Re-upserting
+the same stable ID as enabled during a fade eases its existing particles back
+from their current alpha while emission resumes.
+
+Palette edits default to birth-snapshot behavior: existing particles keep the
+colors they were emitted with. Set `colorChangeMode: "retint"` on a point or
+particle-room request to update living particles too. Retinting preserves each
+particle's current color-over-life progress and affects later particles from
+the updated palette.
+
 `effects.clear()` removes active runtime instances and resets its clock while
 keeping registered recipes. Re-submit the room's active effects after clearing.
-Use `remove(id)` to remove one point or room effect.
+Use `remove(id)` to remove one point, room, overlay, or stain effect.
 
 ## Advanced particle recipe authoring
 
@@ -235,8 +253,10 @@ supported.
 
 ## Stationary surface stains
 
-`TopDownStainSystem` renders static translucent sprite marks for blood,
-grime, and similar surface details. Stains are not simulated particles and do
+The caller-facing `TopDownEffects` controller routes stains through the same
+upsert, remove, frame, and lighting-pass API as other effects. The lower-level
+`TopDownStainSystem` (available from the `advanced` entry point) renders static
+translucent sprite marks for blood, grime, and similar surface details. Stains are not simulated particles and do
 not move after placement. The package includes four named shapes: `splatter`
 for droplets, `patch` for an irregular soiled area, `streak` for a dragged mark,
 and `directional-spray` for direct paint streaks fanning outward. Spray uses
@@ -316,7 +336,7 @@ after lighting for that emitter. `sizePx` controls particle width in room
 pixels, `emissionRatePerSecond` controls particles emitted per second,
 `lifetimeSeconds` controls their lifetime, and `radiusPx` sets floor-plane
 spread. Styles can limit that control to selected streams with
-`lifetimeStreamIds`; wall debris uses it for flying chips while settled rubble
+`lifetimeControlStreamIds`; wall debris uses it for flying chips while settled rubble
 keeps its long authored lifetime. Legacy scale controls remain available. A `surge` adds an exact
 `burstCount` at seeded random intervals between `intervalMinSeconds` and
 `intervalMaxSeconds`. The raw
@@ -339,8 +359,9 @@ stream with `spawn.kind: "room"` samples the current room geometry. The style
 marks which streams respond to wind, which have a temporal color change, and
 which stretch along the wind direction; impact streams can retain their own lighting pass. Wind offsets are supplied
 per emitter, so room effects can drift in different directions and at different
-speeds. One to three independent room emitters can run together without special
-renderer code. Styles can also mark `edgeFlowStreamIds`: those streams spawn
+speeds. Any number of independently identified room emitters can run together;
+their optional numeric `order` is sorted per lighting pass, with stable IDs
+breaking ties. Styles can also mark `windEdgeFlowStreamIds`: those streams spawn
 just outside the upwind room edge and use their travel time to pass beyond the
 downwind edge. They emit only while wind is configured; other room streams keep
 their authored spawn and lifetime behavior. `windMotionMix` can keep the
@@ -398,14 +419,14 @@ particles.update(gameTimeSeconds);
 continuous room overlays that do not fit particle streams. The host supplies two borrowed,
 seamless Pixi textures, chooses where `atmosphere.layer` appears in its final
 composition, and advances it with the same game-time clock. The component does
-not read or modify lights. Fog is one texture field; visible clouds can use up
-to three independently sized, tinted, transparent, wind-driven layers.
+not read or modify lights. Fog and cloud fields are keyed by caller IDs, with
+explicit order and no fixed instance limit.
 
 ```ts
 const atmosphere = new TopDownAtmosphereSystem({ fogTexture, cloudTexture });
 atmosphere.setRoomGeometry({ widthPx: 640, heightPx: 400 });
-atmosphere.setFog({ enabled: true, opacity: 0.18, scalePx: 520 });
-atmosphere.setCloudLayer(0, {
+atmosphere.setField("fog-main", "fog", 10, { enabled: true, opacity: 0.18, scalePx: 520 });
+atmosphere.setField("cloud-far", "cloud", 20, {
   enabled: true, opacity: 0.22, scalePx: 650,
   windDirectionDegrees: 35, windSpeedPxPerSecond: 8
 });
@@ -416,6 +437,12 @@ atmosphere.update(gameTimeSeconds);
 Atmosphere inputs are room pixels, seconds, degrees, and opacity from 0 to 1.
 Fog opacity 1 uses the texture at its authored strength; the texture's soft
 transparent edges remain, while overlapping dense areas approach full cover.
+
+Point, room, overlay, and stain requests accept an optional numeric `order`
+(default `0`). The facade sorts all instances together in each lighting pass
+by that value, then by stable instance ID; authored stream `drawOrder` remains
+inside its particle instance. This lets a stain, cloud, or particle render
+above or below an instance from another effect family.
 Call `resetClock()` before restarting a room's time from an earlier value.
 `dispose()` releases the package-owned display containers, while textures stay
 owned by the host.
@@ -442,7 +469,7 @@ For event-driven effects, keep an emitter registered and deliver stimuli to its
 ID with `sendStimulus()`. A `burst` stimulus emits the effect's `surgeOnly`
 streams using the emitter's authored overrides; an optional direction and speed
 steer the burst. A `wind` stimulus temporarily drifts existing and newly
-spawned particles from streams listed in the style's `windStreamIds`, then
+spawned particles from streams listed in the style's `windBlownStreamIds`, then
 holds at full strength for `durationSeconds` and eases back to authored motion
 over a smooth fade. Styles can set `windNudgeFadeOutSeconds` for that return;
 the default is 0.35 seconds. Stimulus IDs are deduplicated for the room and
@@ -473,3 +500,8 @@ shared lifetime scale for that stream. The panel also exposes color timing,
 opacity scale, and planar velocity offsets. Smoke stays in its separate panel.
 Texture, blend mode, draw order, spawn shape, and authored motion ranges require
 rebuilding the technical recipe.
+
+`TopDownEffects.getStats()` reports particle counts plus active atmosphere-field
+and stain counts. Its `allocationFailures` total combines particle drops at
+`maxParticles` with stain requests rejected at `maxStains`, with a per-family
+breakdown. These capacity counters reset when `clear()` starts a new room runtime.

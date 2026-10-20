@@ -27,11 +27,22 @@ import {
   recolorStyleColor
 } from "./particle-core.js";
 import type { NormalizedEffect, NormalizedEmitter, NormalizedStream } from "./particle-core.js";
+import type { RenderOrderCoordinator } from "./RenderOrderCoordinator.js";
+
+interface ParticleSystemRenderOptions {
+  renderLayers?: { "pre-light": Container; "post-light": Container };
+  orderCoordinator?: RenderOrderCoordinator;
+}
 
 interface ParticleGroup {
+  key: string;
   container: ParticleContainer<Particle>;
   texture: Texture;
   free: Particle[];
+  layer: "pre-light" | "post-light";
+  emitterId: string;
+  order: number;
+  drawOrder: number;
 }
 
 interface EmitterState {
@@ -40,6 +51,7 @@ interface EmitterState {
   surgeNextAt: number | null;
   surgeRandomState: number;
   windNudges: Map<string, WindNudgeState>;
+  alphaFade?: { from: number; to: number; startedAtSeconds: number; durationSeconds: number };
 }
 
 interface WindNudgeState {
@@ -54,24 +66,24 @@ interface RegisteredStyle {
   defaultColor: string;
   defaultSmokeColor: string;
   baseRadiusPx: number;
-  colorStreamIds: Set<string>;
+  colorControlStreamIds: Set<string>;
   flameStreamIds: Set<string>;
   smokeStreamIds: Set<string>;
   emberStreamIds: Set<string>;
   defaultColors: ParticleColors;
   defaultSmokeColors: ParticleColors;
   colorBindings: Record<string, ParticleColorBinding>;
-  windStreamIds: Set<string>;
+  windBlownStreamIds: Set<string>;
   windNudgeFadeOutSeconds: number;
-  lifetimeStreamIds: Set<string>;
+  lifetimeControlStreamIds: Set<string>;
 }
 
 interface RegisteredRoomStyle {
   defaultColors: ParticleColors;
   colorBindings: Record<string, ParticleColorBinding>;
-  windStreamIds: Set<string>;
+  windBlownStreamIds: Set<string>;
   windNudgeFadeOutSeconds: number;
-  edgeFlowStreamIds: Set<string>;
+  windEdgeFlowStreamIds: Set<string>;
   windMotionMix?: {
     streamIds: Set<string>;
     maxWindSpeedPxPerSecond: number;
@@ -80,7 +92,7 @@ interface RegisteredRoomStyle {
   };
   flipColorStreamIds: Set<string>;
   windStretchStreamIds: Set<string>;
-  temporalColorStreamIds: Set<string>;
+  colorTransitionControlStreamIds: Set<string>;
   defaultColorTransitionFraction: number;
   defaultEmissionRatePerSecond: number;
   defaultSizePx: number;
@@ -140,12 +152,14 @@ const NO_WIND_STREAMS = new Set<string>();
  * or owns the host's renderer and borrowed textures.
  */
 export class TopDownParticleSystem {
-  readonly preLight = new Container();
-  readonly postLight = new Container();
+  readonly preLight: Container;
+  readonly postLight: Container;
 
   private readonly textures: Record<string, Texture>;
   private readonly maxParticles: number;
   private readonly initialSeed: number;
+  private readonly ownsRenderLayers: boolean;
+  private readonly orderCoordinator?: RenderOrderCoordinator;
   private randomState: number;
   private geometry: ParticleRoomGeometry | null = null;
   private readonly effects = new Map<string, NormalizedEffect>();
@@ -163,7 +177,11 @@ export class TopDownParticleSystem {
   private droppedParticles = 0;
   private disposed = false;
 
-  constructor(options: TopDownParticleSystemOptions) {
+  constructor(options: TopDownParticleSystemOptions & ParticleSystemRenderOptions) {
+    this.ownsRenderLayers = options.renderLayers === undefined;
+    this.preLight = options.renderLayers?.["pre-light"] ?? new Container();
+    this.postLight = options.renderLayers?.["post-light"] ?? new Container();
+    this.orderCoordinator = options.orderCoordinator;
     this.textures = { ...options.textures };
     this.preLight.sortableChildren = true;
     this.postLight.sortableChildren = true;
@@ -193,8 +211,9 @@ export class TopDownParticleSystem {
     this.roomStyles.delete(normalized.id);
   }
 
-  registerStyle(style: ParticleStyleDefinition): void {
+  registerStyle(style: ParticleStyleDefinition, imageSlotOverrides?: Record<string, Texture>): void {
     this.assertActive();
+    style = this.withScopedImages(style, imageSlotOverrides);
     parseHexColor(style.defaultColor);
     parseHexColor(style.defaultSmokeColor);
     if (!Number.isFinite(style.baseRadiusPx) || style.baseRadiusPx <= 0) {
@@ -207,12 +226,12 @@ export class TopDownParticleSystem {
       for (const id of result) if (!streamIds.has(id)) throw new Error(`Unknown ${name} stream '${id}'.`);
       return result;
     };
-    const colorStreamIds = roleIds(style.colorStreamIds, "colorStreamIds");
+    const colorControlStreamIds = roleIds(style.colorControlStreamIds, "colorControlStreamIds");
     const flameStreamIds = roleIds(style.flameStreamIds, "flameStreamIds");
     const smokeStreamIds = roleIds(style.smokeStreamIds, "smokeStreamIds");
     const emberStreamIds = roleIds(style.emberStreamIds, "emberStreamIds");
-    const windStreamIds = roleIds(style.windStreamIds ?? [], "windStreamIds");
-    const lifetimeStreamIds = roleIds(style.lifetimeStreamIds ?? [...streamIds], "lifetimeStreamIds");
+    const windBlownStreamIds = roleIds(style.windBlownStreamIds ?? [], "windBlownStreamIds");
+    const lifetimeControlStreamIds = roleIds(style.lifetimeControlStreamIds ?? [...streamIds], "lifetimeControlStreamIds");
     const windNudgeFadeOutSeconds = style.windNudgeFadeOutSeconds ?? WIND_NUDGE_FADE_OUT_SECONDS;
     if (!Number.isFinite(windNudgeFadeOutSeconds) || windNudgeFadeOutSeconds < 0) {
       throw new RangeError("Style windNudgeFadeOutSeconds must be nonnegative and finite.");
@@ -232,12 +251,12 @@ export class TopDownParticleSystem {
       defaultColor: style.defaultColor,
       defaultSmokeColor: style.defaultSmokeColor,
       baseRadiusPx: style.baseRadiusPx,
-      colorStreamIds,
+      colorControlStreamIds,
       flameStreamIds,
       smokeStreamIds,
       emberStreamIds,
-      windStreamIds,
-      lifetimeStreamIds,
+      windBlownStreamIds,
+      lifetimeControlStreamIds,
       defaultColors,
       defaultSmokeColors,
       colorBindings: { ...style.colorBindings },
@@ -245,8 +264,9 @@ export class TopDownParticleSystem {
     });
   }
 
-  registerRoomStyle(style: ParticleRoomStyleDefinition): void {
+  registerRoomStyle(style: ParticleRoomStyleDefinition, imageSlotOverrides?: Record<string, Texture>): void {
     this.assertActive();
+    style = this.withScopedImages(style, imageSlotOverrides);
     parseHexColor(style.defaultColors.primary);
     parseHexColor(style.defaultColors.secondary);
     const streamIds = new Set(style.streams.map(stream => stream.id));
@@ -254,22 +274,22 @@ export class TopDownParticleSystem {
     for (const id of streamIds) {
       if (!style.colorBindings[id]) throw new Error(`Missing color binding for room stream '${id}'.`);
     }
-    const windStreamIds = new Set(style.windStreamIds ?? []);
+    const windBlownStreamIds = new Set(style.windBlownStreamIds ?? []);
     const windNudgeFadeOutSeconds = style.windNudgeFadeOutSeconds ?? WIND_NUDGE_FADE_OUT_SECONDS;
     if (!Number.isFinite(windNudgeFadeOutSeconds) || windNudgeFadeOutSeconds < 0) {
       throw new RangeError("Room style windNudgeFadeOutSeconds must be nonnegative and finite.");
     }
-    const edgeFlowStreamIds = new Set(style.edgeFlowStreamIds ?? []);
+    const windEdgeFlowStreamIds = new Set(style.windEdgeFlowStreamIds ?? []);
     const windStretchStreamIds = new Set(style.windStretchStreamIds ?? []);
-    const temporalColorStreamIds = new Set(style.temporalColorStreamIds ?? []);
+    const colorTransitionControlStreamIds = new Set(style.colorTransitionControlStreamIds ?? []);
     const flipColorStreamIds = new Set(Object.entries(style.colorBindings)
       .filter(([, binding]) => binding === "flip")
       .map(([streamId]) => streamId));
-    for (const id of [...windStreamIds, ...edgeFlowStreamIds, ...windStretchStreamIds, ...temporalColorStreamIds]) {
+    for (const id of [...windBlownStreamIds, ...windEdgeFlowStreamIds, ...windStretchStreamIds, ...colorTransitionControlStreamIds]) {
       if (!streamIds.has(id)) throw new Error(`Unknown room style stream '${id}'.`);
     }
-    for (const id of edgeFlowStreamIds) {
-      if (!windStreamIds.has(id)) throw new Error(`Edge-flow stream '${id}' must respond to wind.`);
+    for (const id of windEdgeFlowStreamIds) {
+      if (!windBlownStreamIds.has(id)) throw new Error(`Edge-flow stream '${id}' must respond to wind.`);
       const stream = style.streams.find(candidate => candidate.id === id);
       if (!stream || stream.spawn.kind !== "room") {
         throw new Error(`Edge-flow stream '${id}' must spawn across room geometry.`);
@@ -280,7 +300,7 @@ export class TopDownParticleSystem {
       const motionStreamIds = new Set(style.windMotionMix.streamIds);
       if (motionStreamIds.size === 0) throw new Error("windMotionMix requires at least one stream.");
       for (const id of motionStreamIds) {
-        if (!edgeFlowStreamIds.has(id)) throw new Error(`Wind motion mix stream '${id}' must use edge flow.`);
+        if (!windEdgeFlowStreamIds.has(id)) throw new Error(`Wind motion mix stream '${id}' must use edge flow.`);
       }
       if (!Number.isFinite(style.windMotionMix.maxWindSpeedPxPerSecond) || style.windMotionMix.maxWindSpeedPxPerSecond <= 0) {
         throw new RangeError("windMotionMix maxWindSpeedPxPerSecond must be positive and finite.");
@@ -300,7 +320,7 @@ export class TopDownParticleSystem {
         highWindSkitterFraction: style.windMotionMix.highWindSkitterFraction
       };
     }
-    for (const id of temporalColorStreamIds) {
+    for (const id of colorTransitionControlStreamIds) {
       if (style.colorBindings[id] !== "transition") throw new Error(`Temporal room stream '${id}' must use transition colors.`);
     }
     const fraction = style.defaultColorTransitionFraction ?? 1;
@@ -315,13 +335,13 @@ export class TopDownParticleSystem {
     this.roomStyles.set(style.id.trim(), {
       defaultColors: { ...style.defaultColors },
       colorBindings: { ...style.colorBindings },
-      windStreamIds,
+      windBlownStreamIds,
       windNudgeFadeOutSeconds,
-      edgeFlowStreamIds,
+      windEdgeFlowStreamIds,
       windMotionMix,
       flipColorStreamIds,
       windStretchStreamIds,
-      temporalColorStreamIds,
+      colorTransitionControlStreamIds,
       defaultColorTransitionFraction: fraction,
       defaultEmissionRatePerSecond, defaultSizePx, defaultLifetimeSeconds, defaultColorTransitionSeconds
     });
@@ -386,13 +406,13 @@ export class TopDownParticleSystem {
         lifetimeSeconds: stream.spawn.kind === "room" ? input.lifetimeSeconds : undefined,
         ...this.mapStyleColors(stream, style.colorBindings[stream.id], style.defaultColors, input.streamColors?.[stream.id] ?? colors)
       };
-      if (style.edgeFlowStreamIds.has(stream.id)) {
+      if (style.windEdgeFlowStreamIds.has(stream.id)) {
         // Crossing time is computed from room dimensions and particle velocity.
         // No leaves are introduced in a calm room with no defined flow direction.
         override.lifetimeSeconds = undefined;
         if (windStrength === 0) override.ratePerSecond = 0;
       }
-      if (style.windStreamIds.has(stream.id)) {
+      if (style.windBlownStreamIds.has(stream.id)) {
         override.velocityOffsetXPxPerSecond = windX;
         override.velocityOffsetYPxPerSecond = windY;
       }
@@ -400,14 +420,15 @@ export class TopDownParticleSystem {
         override.windStretchScale = windStretchScale;
         if (windStrength > 0) override.windStretchRotationRadians = Math.atan2(windY, windX);
       }
-      if (style.temporalColorStreamIds.has(stream.id)) {
+      if (style.colorTransitionControlStreamIds.has(stream.id)) {
         override.colorTransitionFraction = input.colorTransitionSeconds === undefined ? fraction : undefined;
         if (input.colorTransitionSeconds !== undefined) override.colorTransitionSeconds = transitionSeconds;
       }
       if (input.layer && input.layer !== "style-default") override.layer = input.layer;
       streamOverrides[stream.id] = override;
     }
-    this.upsertEmitter({ id: input.id, effectId: input.style, xPx: 0, yPx: 0, active: input.active, surge: input.surge, streamOverrides });
+    this.upsertEmitter({ id: input.id, effectId: input.style, xPx: 0, yPx: 0, active: input.active, surge: input.surge,
+        colorChangeMode: input.colorChangeMode, order: input.order, streamOverrides });
   }
 
   upsertStyledEmitter(input: ParticleStyledEmitterInput): void {
@@ -496,7 +517,7 @@ export class TopDownParticleSystem {
         radiusScale,
         speedScale
       };
-      if (color.toLowerCase() !== style.defaultColor.toLowerCase() && style.colorStreamIds.has(stream.id)) {
+      if (color.toLowerCase() !== style.defaultColor.toLowerCase() && style.colorControlStreamIds.has(stream.id)) {
         override.startColor = recolorStyleColor(stream.startColor, style.defaultColor, color);
         override.endColor = recolorStyleColor(stream.endColor, style.defaultColor, color);
       }
@@ -536,7 +557,7 @@ export class TopDownParticleSystem {
           ? stream.ratePerSecond * relative
           : input.emissionRatePerSecond / Math.max(1, selectedStreamCount);
       }
-      if (input.lifetimeSeconds !== undefined && style.lifetimeStreamIds.has(stream.id)) {
+      if (input.lifetimeSeconds !== undefined && style.lifetimeControlStreamIds.has(stream.id)) {
         override.lifetimeScale = input.lifetimeSeconds / Math.max(0.01, (stream.lifeMinSeconds + stream.lifeMaxSeconds) / 2);
       }
       if (input.colorTransitionSeconds !== undefined && (style.colorBindings[stream.id] ?? "transition") === "transition") {
@@ -568,7 +589,9 @@ export class TopDownParticleSystem {
       xPx: input.xPx,
       yPx: input.yPx,
       active: input.active,
+      order: input.order,
       surge: input.surge,
+      colorChangeMode: input.colorChangeMode,
       streamOverrides
     });
   }
@@ -594,6 +617,25 @@ export class TopDownParticleSystem {
       }
     }
     const previous = this.emitters.get(normalized.id);
+    const alphaFade = previous?.alphaFade;
+    let nextAlphaFade = alphaFade;
+    if (previous && previous.input.active !== normalized.active) {
+      const removalDurationMs = effect.removalDurationMs;
+      const from = this.emitterAlpha(previous, this.simulationTimeSeconds);
+      if (!normalized.active && removalDurationMs === 0) {
+        this.removeEmitterParticles(normalized.id);
+        nextAlphaFade = undefined;
+      } else if (removalDurationMs !== undefined && removalDurationMs !== null && removalDurationMs > 0) {
+        nextAlphaFade = {
+          from,
+          to: normalized.active ? 1 : 0,
+          startedAtSeconds: this.simulationTimeSeconds,
+          durationSeconds: removalDurationMs / 1000
+        };
+      } else {
+        nextAlphaFade = undefined;
+      }
+    }
     const keepSurge = previous?.input.effectId === normalized.effectId &&
       JSON.stringify(previous.input.surge) === JSON.stringify(normalized.surge);
     this.emitters.set(normalized.id, {
@@ -601,13 +643,47 @@ export class TopDownParticleSystem {
       remainders: previous?.input.effectId === normalized.effectId ? previous.remainders : new Map(),
       surgeNextAt: keepSurge ? previous!.surgeNextAt : null,
       surgeRandomState: keepSurge ? previous!.surgeRandomState : (normalized.surge?.seed ?? this.initialSeed) ^ this.hash(normalized.id),
-      windNudges: previous?.input.effectId === normalized.effectId ? previous.windNudges : new Map()
+      windNudges: previous?.input.effectId === normalized.effectId ? previous.windNudges : new Map(),
+      alphaFade: nextAlphaFade
     });
+    this.refreshParticleOrder();
+    if (previous && previous.input.effectId === normalized.effectId && normalized.colorChangeMode === "retint") {
+      const streams = new Map(effect.streams.map(stream => [stream.id, stream]));
+      for (const particle of this.live) {
+        if (particle.emitterId !== normalized.id) continue;
+        const stream = streams.get(particle.stream.id);
+        if (!stream) continue;
+        const override = normalized.streamOverrides[stream.id];
+        const nextStart = override?.startColor ? parseHexColor(override.startColor) : stream.startColorRgb;
+        const nextEnd = override?.endColor ? parseHexColor(override.endColor) : stream.endColorRgb;
+        if (nextStart === particle.startColorRgb && nextEnd === particle.endColorRgb) continue;
+        particle.startColorRgb = nextStart;
+        particle.endColorRgb = nextEnd;
+        this.updateVisual(particle);
+      }
+    }
   }
 
   removeEmitter(id: string): void {
     this.assertActive();
+    const emitter = this.emitters.get(id);
+    if (!emitter) return;
+    const effect = this.effects.get(emitter.input.effectId);
+    const durationMs = effect?.removalDurationMs;
+    if (durationMs === 0) {
+      this.removeEmitterParticles(id);
+      this.emitters.delete(id);
+      this.releaseUnusedGroups(id);
+      return;
+    }
+    if (durationMs !== undefined && durationMs !== null && durationMs > 0) {
+      const from = this.emitterAlpha(emitter, this.simulationTimeSeconds);
+      emitter.alphaFade = { from, to: 0, startedAtSeconds: this.simulationTimeSeconds, durationSeconds: durationMs / 1000 };
+      emitter.input = { ...emitter.input, active: false };
+      return;
+    }
     this.emitters.delete(id);
+    this.releaseUnusedGroups(id);
   }
 
   setOccluders(occluders: ParticleOccluderInput[]): void {
@@ -699,7 +775,7 @@ export class TopDownParticleSystem {
         throw new RangeError("Wind speedPxPerSecond must be nonnegative and finite.");
       }
       this.positiveSetting(input.durationSeconds, "wind durationSeconds");
-      const responsiveStreams = this.windStreamIdsForEffect(emitter.input.effectId);
+      const responsiveStreams = this.windBlownStreamIdsForEffect(emitter.input.effectId);
       if (responsiveStreams.size === 0) {
         throw new Error(`Effect '${emitter.input.effectId}' has no wind-responsive streams.`);
       }
@@ -718,8 +794,8 @@ export class TopDownParticleSystem {
     throw new TypeError("Unknown particle stimulus kind.");
   }
 
-  private windStreamIdsForEffect(effectId: string): Set<string> {
-    return this.roomStyles.get(effectId)?.windStreamIds ?? this.styles.get(effectId)?.windStreamIds ?? NO_WIND_STREAMS;
+  private windBlownStreamIdsForEffect(effectId: string): Set<string> {
+    return this.roomStyles.get(effectId)?.windBlownStreamIds ?? this.styles.get(effectId)?.windBlownStreamIds ?? NO_WIND_STREAMS;
   }
 
   private windNudgeFadeOutSecondsForEffect(effectId: string): number {
@@ -731,7 +807,7 @@ export class TopDownParticleSystem {
     if (!state.emitterId) return NO_WIND;
     const emitter = this.emitters.get(state.emitterId);
     if (!emitter || emitter.windNudges.size === 0 ||
-        !this.windStreamIdsForEffect(emitter.input.effectId).has(state.stream.id)) return NO_WIND;
+        !this.windBlownStreamIdsForEffect(emitter.input.effectId).has(state.stream.id)) return NO_WIND;
     let x = 0;
     let y = 0;
     for (const nudge of emitter.windNudges.values()) {
@@ -784,12 +860,8 @@ export class TopDownParticleSystem {
   /** Clears room runtime state while retaining registered, game-owned effects. */
   clear(): void {
     this.assertActive();
-    for (const state of this.live) state.group.free.push(state.visual);
     this.live.length = 0;
-    for (const group of this.groups.values()) {
-      group.container.particleChildren.length = 0;
-      group.container.update();
-    }
+    for (const group of [...this.groups.values()]) this.releaseGroup(group);
     this.emitters.clear();
     this.occluders = [];
     this.seenEventIds.clear();
@@ -804,8 +876,10 @@ export class TopDownParticleSystem {
   dispose(): void {
     if (this.disposed) return;
     this.clear();
-    this.preLight.destroy({ children: true });
-    this.postLight.destroy({ children: true });
+    if (this.ownsRenderLayers) {
+      this.preLight.destroy({ children: true });
+      this.postLight.destroy({ children: true });
+    }
     this.groups.clear();
     this.effects.clear();
     this.styles.clear();
@@ -875,7 +949,12 @@ export class TopDownParticleSystem {
 
   private step(dt: number): void {
     this.simulationTimeSeconds += dt;
-    for (const emitter of this.emitters.values()) {
+    const completedFades: string[] = [];
+    for (const [id, emitter] of this.emitters) {
+      const fade = emitter.alphaFade;
+      if (fade && this.simulationTimeSeconds >= fade.startedAtSeconds + fade.durationSeconds) {
+        completedFades.push(id);
+      }
       for (const [id, nudge] of emitter.windNudges) {
         if (this.simulationTimeSeconds >= nudge.startedAtSeconds + nudge.durationSeconds + nudge.fadeOutSeconds) {
           emitter.windNudges.delete(id);
@@ -891,6 +970,7 @@ export class TopDownParticleSystem {
         this.live.splice(i, 1);
         if (state.onDeathStream) this.spawn(state.onDeathStream, state.xPx, state.yPx, state.onDeathOverride,
           undefined, undefined, state.emitterId);
+        this.releaseUnusedGroups(state.emitterId ?? "");
         continue;
       }
       state.velocityXPxPerSecond += (state.stream.accelerationXPxPerSecond2 ?? 0) * dt;
@@ -960,6 +1040,11 @@ export class TopDownParticleSystem {
         }
       }
     }
+    for (const id of completedFades) {
+      if (this.live.some(state => state.emitterId === id)) continue;
+      this.emitters.delete(id);
+      this.releaseUnusedGroups(id);
+    }
   }
 
   private spawn(
@@ -977,7 +1062,7 @@ export class TopDownParticleSystem {
     }
     const renderedStream = override?.layer && override.layer !== stream.layer
       ? { ...stream, layer: override.layer } : stream;
-    const group = this.groupFor(renderedStream);
+    const group = this.groupFor(renderedStream, emitterId);
     const visual = group.free.pop() ?? new Particle({ texture: group.texture, anchorX: 0.5, anchorY: 0.5 });
     const radiusScale = override?.radiusScale ?? 1;
     const speedScale = override?.speedScale ?? 1;
@@ -989,7 +1074,7 @@ export class TopDownParticleSystem {
     const angle = this.random() * Math.PI * 2;
     const emitter = emitterId ? this.emitters.get(emitterId) : undefined;
     const roomStyle = emitter ? this.roomStyles.get(emitter.input.effectId) : undefined;
-    const edgeFlow = stream.spawn.kind === "room" && roomStyle?.edgeFlowStreamIds.has(stream.id) === true;
+    const edgeFlow = stream.spawn.kind === "room" && roomStyle?.windEdgeFlowStreamIds.has(stream.id) === true;
     const flowX = override?.velocityOffsetXPxPerSecond ?? 0;
     const flowY = override?.velocityOffsetYPxPerSecond ?? 0;
     const flowSpeed = Math.hypot(flowX, flowY);
@@ -1121,7 +1206,29 @@ export class TopDownParticleSystem {
         ? t / state.colorTransitionFraction : state.ageSeconds / state.colorTransitionSeconds;
     state.visual.tint = mixColor(state.startColorRgb, state.endColorRgb, colorProgress);
     const alpha = state.startAlpha + (state.endAlpha - state.startAlpha) * t;
-    state.visual.alpha = Math.max(0, Math.min(1, alpha * state.alphaScale * this.cellVisibility(state)));
+    state.visual.alpha = Math.max(0, Math.min(1,
+      alpha * state.alphaScale * this.cellVisibility(state) * this.emitterAlphaForParticle(state)));
+  }
+
+  private emitterAlphaForParticle(state: LiveParticle): number {
+    return state.emitterId ? this.emitterAlpha(this.emitters.get(state.emitterId), this.simulationTimeSeconds) : 1;
+  }
+
+  private emitterAlpha(emitter: EmitterState | undefined, timeSeconds: number): number {
+    const fade = emitter?.alphaFade;
+    if (!fade) return 1;
+    const progress = Math.max(0, Math.min(1, (timeSeconds - fade.startedAtSeconds) / fade.durationSeconds));
+    return fade.from + (fade.to - fade.from) * progress;
+  }
+
+  private removeEmitterParticles(emitterId: string): void {
+    for (let index = this.live.length - 1; index >= 0; index--) {
+      const state = this.live[index];
+      if (state.emitterId !== emitterId) continue;
+      state.group.container.removeParticle(state.visual);
+      state.group.free.push(state.visual);
+      this.live.splice(index, 1);
+    }
   }
 
   private cellVisibility(state: LiveParticle): number {
@@ -1155,8 +1262,10 @@ export class TopDownParticleSystem {
     return 0.5 - 0.5 * Math.cos(2 * Math.PI * cycleSeconds / state.leafFlip.durationSeconds);
   }
 
-  private groupFor(stream: NormalizedStream): ParticleGroup {
-    const key = `${stream.layer}|${stream.blendMode}|${stream.textureId}|${stream.drawOrder}`;
+  private groupFor(stream: NormalizedStream, emitterId?: string): ParticleGroup {
+    const id = emitterId ?? "";
+    const emitterOrder = emitterId ? this.emitters.get(emitterId)?.input.order ?? 0 : 0;
+    const key = `${id}|${stream.layer}|${stream.blendMode}|${stream.textureId}|${stream.drawOrder}`;
     let group = this.groups.get(key);
     if (!group) {
       const texture = this.textures[stream.textureId];
@@ -1168,12 +1277,89 @@ export class TopDownParticleSystem {
         dynamicProperties: { position: true, vertex: true, rotation: true, uvs: false, color: true }
       });
       container.blendMode = stream.blendMode;
-      container.zIndex = stream.drawOrder;
       (stream.layer === "pre-light" ? this.preLight : this.postLight).addChild(container);
-      group = { container, texture, free: [] };
+      group = { key, container, texture, free: [], layer: stream.layer, emitterId: id, order: emitterOrder, drawOrder: stream.drawOrder };
       this.groups.set(key, group);
+      if (this.orderCoordinator) this.orderCoordinator.register(id, emitterOrder, stream.layer, stream.drawOrder, container);
+      else this.refreshParticleOrder();
     }
+    group.order = emitterOrder;
     return group;
+  }
+
+  private refreshParticleOrder(): void {
+    if (this.orderCoordinator) {
+      const updated = new Set<string>();
+      for (const group of this.groups.values()) {
+        if (!group.emitterId || updated.has(group.emitterId)) continue;
+        updated.add(group.emitterId);
+        const order = this.emitters.get(group.emitterId)?.input.order;
+        if (order !== undefined) this.orderCoordinator.updateInstanceOrder(group.emitterId, order);
+      }
+      return;
+    }
+    for (const group of this.groups.values()) {
+      if (!group.emitterId) continue;
+      group.order = this.emitters.get(group.emitterId)?.input.order ?? group.order;
+    }
+    for (const layer of ["pre-light", "post-light"] as const) {
+      const ordered = [...this.groups.values()].filter(group => group.layer === layer).sort((a, b) =>
+        a.order - b.order || (a.emitterId < b.emitterId ? -1 : a.emitterId > b.emitterId ? 1 : 0) || a.drawOrder - b.drawOrder
+      );
+      const drawOrders = ordered.map(group => group.drawOrder);
+      const minDrawOrder = drawOrders.length ? Math.min(...drawOrders) : 0;
+      const maxDrawOrder = drawOrders.length ? Math.max(...drawOrders) : 0;
+      const instanceStride = maxDrawOrder - minDrawOrder + 1;
+      let instanceKey = "";
+      let instanceRank = -1;
+      for (const group of ordered) {
+        const nextKey = `${group.order}\u0000${group.emitterId}`;
+        if (nextKey !== instanceKey) {
+          instanceKey = nextKey;
+          instanceRank++;
+        }
+        group.container.zIndex = instanceRank * instanceStride + group.drawOrder - minDrawOrder;
+      }
+    }
+  }
+
+  /** Drop groups and their free particle pools once an instance has no live particles. */
+  private releaseUnusedGroups(emitterId: string): void {
+    if (this.emitters.has(emitterId) || this.live.some(state => (state.emitterId ?? "") === emitterId)) return;
+    for (const group of [...this.groups.values()]) {
+      if (group.emitterId === emitterId) this.releaseGroup(group);
+    }
+    if (!this.orderCoordinator) this.refreshParticleOrder();
+  }
+
+  private releaseGroup(group: ParticleGroup): void {
+    if (!this.groups.delete(group.key)) return;
+    this.orderCoordinator?.remove(group.container);
+    group.container.parent?.removeChild(group.container);
+    group.free.length = 0;
+    group.container.destroy({ children: true });
+  }
+
+  private withScopedImages<T extends ParticleEffectDefinition>(recipe: T, overrides?: Record<string, Texture>): T {
+    if (!overrides || Object.keys(overrides).length === 0) return recipe;
+    const slots = new Set(recipe.streams.map(stream => stream.textureId));
+    for (const slot of Object.keys(overrides)) {
+      if (!slots.has(slot)) throw new Error(`Unknown image slot '${slot}' for recipe '${recipe.id}'.`);
+      if (!overrides[slot]) throw new TypeError(`Image slot '${slot}' for recipe '${recipe.id}' requires a texture.`);
+    }
+    const scopedIds = new Map<string, string>();
+    for (const slot of Object.keys(overrides)) {
+      const scopedId = `__recipe_image__/${recipe.id}/${slot}`;
+      this.textures[scopedId] = overrides[slot];
+      scopedIds.set(slot, scopedId);
+    }
+    return {
+      ...recipe,
+      streams: recipe.streams.map(stream => ({
+        ...stream,
+        ...(scopedIds.has(stream.textureId) ? { textureId: scopedIds.get(stream.textureId)! } : {})
+      }))
+    };
   }
 
   private random(): number {

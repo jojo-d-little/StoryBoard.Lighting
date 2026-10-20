@@ -1,5 +1,7 @@
 {
   "version": 15,
+  "transitionTimeMs": 500,
+  "colorChangeMode": "birth-snapshot",
   "roomEffects": [
     {
       "id": "room-1",
@@ -432,16 +434,22 @@
     }
   ],
   "atmosphere": {
-    "fog": {
-      "enabled": false,
-      "tint": "#d5dde2",
-      "opacity": 0.18,
-      "scalePx": 520,
-      "windDirectionDegrees": 0,
-      "windSpeedPxPerSecond": 0
-    },
+    "fogLayers": [
+      {
+        "id": "fog-1",
+        "order": 0,
+        "enabled": false,
+        "tint": "#d5dde2",
+        "opacity": 0.18,
+        "scalePx": 520,
+        "windDirectionDegrees": 0,
+        "windSpeedPxPerSecond": 0
+      }
+    ],
     "cloudLayers": [
       {
+        "id": "cloud-1",
+        "order": 10,
         "enabled": false,
         "tint": "#ffffff",
         "opacity": 0.22,
@@ -450,6 +458,8 @@
         "windSpeedPxPerSecond": 0
       },
       {
+        "id": "cloud-2",
+        "order": 20,
         "enabled": false,
         "tint": "#ffffff",
         "opacity": 0.16,
@@ -458,6 +468,8 @@
         "windSpeedPxPerSecond": 8
       },
       {
+        "id": "cloud-3",
+        "order": 30,
         "enabled": false,
         "tint": "#ffffff",
         "opacity": 0.12,

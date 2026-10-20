@@ -3,9 +3,13 @@ import { TopDownAtmosphereSystem } from "./TopDownAtmosphereSystem.js";
 import type { AtmosphereFieldInput, TopDownAtmosphereSystemOptions } from "./TopDownAtmosphereSystem.js";
 import { TopDownParticleSystem } from "./TopDownParticleSystem.js";
 import { loadDefaultParticleAssets } from "./default-assets.js";
+import { loadDefaultStainTextures } from "./default-assets.js";
+import { TopDownStainSystem } from "./TopDownStainSystem.js";
+import { RenderOrderCoordinator } from "./RenderOrderCoordinator.js";
 import type { DefaultParticleAssetOverrides } from "./default-assets.js";
 import type {
   ParticleBurstInput,
+  ParticleColorChangeMode,
   ParticleEffectDefinition,
   ParticleOccluderInput,
   ParticleRoomGeometry,
@@ -15,6 +19,8 @@ import type {
   ParticleStimulusInput,
   ParticleStyleDefinition,
   ParticleStyledEmitterInput,
+  TopDownStainInput,
+  TopDownStainTextures,
   TopDownParticleSystemOptions
 } from "./contracts.js";
 
@@ -35,6 +41,10 @@ export type RoomEffectName = RegisteredRoomEffectName | "fog" | "cloud";
 
 interface RoomEffectRequestBase {
   id: string;
+  /** Per-lighting-pass render order; ties are resolved by stable instance ID. */
+  order?: number;
+  transitionTimeMs?: number;
+  removalDurationMs?: number | null;
   enabled?: boolean;
   /** Scales a particle recipe's authored density or sets overlay opacity. */
   intensity?: number;
@@ -47,6 +57,7 @@ export interface ParticleRoomEffectInput extends RoomEffectRequestBase {
   /** Particle footprint in room-space pixels. */
   sizePx?: number;
   colors?: readonly string[];
+  colorChangeMode?: ParticleColorChangeMode;
   layer?: "pre-light" | "post-light";
   lifetimeSeconds?: number;
   colorTransitionSeconds?: number;
@@ -76,16 +87,39 @@ export interface TopDownEffectsOptions {
     particles: TopDownParticleSystemOptions["textures"];
     fog?: TopDownAtmosphereSystemOptions["fogTexture"];
     clouds?: TopDownAtmosphereSystemOptions["cloudTexture"];
+    stains?: TopDownStainTextures;
   };
   maxParticles?: number;
+  maxStains?: number;
+  onStainExpire?: (id: string) => void;
   seed?: number;
+}
+
+/** Aggregate diagnostics for every effect family managed by the facade. */
+export interface TopDownEffectsStats extends ParticleStats {
+  atmosphereFields: number;
+  stains: number;
+  allocationFailures: {
+    /** Particle instances rejected because maxParticles was reached. */
+    particleCapacity: number;
+    /** New stain instances rejected because maxStains was reached. */
+    stainCapacity: number;
+    total: number;
+  };
 }
 
 /** Options for the async factory that loads this package's default images. */
 export interface TopDownEffectsCreateOptions extends Omit<TopDownEffectsOptions, "textures"> {
   /** Matching custom textures override packaged defaults; omitted entries use package art. */
   textures?: DefaultParticleAssetOverrides;
+  stainTextures?: Partial<TopDownStainTextures>;
 }
+
+/** One stable-ID request shape for every persistent visual family. */
+export type TopDownEffectInput =
+  | { kind: "point"; input: ParticleStyledEmitterInput }
+  | { kind: "room"; input: RoomEffectInput }
+  | { kind: "stain"; input: Omit<TopDownStainInput, "lifetimeSeconds" | "fadeOutSeconds"> };
 
 /**
  * Caller-facing effect controller. Register recipes once, then configure
@@ -96,39 +130,53 @@ export class TopDownEffects {
   readonly postLight = new Container();
   private readonly particleSystem: TopDownParticleSystem;
   private readonly atmosphereSystem?: TopDownAtmosphereSystem;
+  private readonly stainSystem?: TopDownStainSystem;
 
   private readonly registeredRoomEffects = new Set<string>();
-  private readonly cloudSlots = new Map<string, number>();
-  private fogId: string | null = null;
   private disposed = false;
+  private readonly orderCoordinator: RenderOrderCoordinator;
 
   /** Create a controller with packaged default art and optional per-image overrides. */
   static async create(options: TopDownEffectsCreateOptions = {}): Promise<TopDownEffects> {
-    const textures = await loadDefaultParticleAssets(options.textures);
+    const [textures, stains] = await Promise.all([
+      loadDefaultParticleAssets(options.textures),
+      loadDefaultStainTextures({ stains: options.stainTextures })
+    ]);
     return new TopDownEffects({
-      textures,
+      textures: { ...textures, stains },
       maxParticles: options.maxParticles,
+      maxStains: options.maxStains,
+      onStainExpire: options.onStainExpire,
       seed: options.seed
     });
   }
 
   constructor(options: TopDownEffectsOptions) {
+    this.orderCoordinator = new RenderOrderCoordinator({ "pre-light": this.preLight, "post-light": this.postLight });
     this.particleSystem = new TopDownParticleSystem({
       textures: options.textures.particles,
       maxParticles: options.maxParticles,
-      seed: options.seed
+      seed: options.seed,
+      renderLayers: { "pre-light": this.preLight, "post-light": this.postLight },
+      orderCoordinator: this.orderCoordinator
     });
     if (options.textures.fog && options.textures.clouds) {
       this.atmosphereSystem = new TopDownAtmosphereSystem({
         fogTexture: options.textures.fog,
-        cloudTexture: options.textures.clouds
+        cloudTexture: options.textures.clouds,
+        layer: this.postLight,
+        orderCoordinator: this.orderCoordinator
       });
     } else if (options.textures.fog || options.textures.clouds) {
       throw new TypeError("Room overlays require both fog and cloud textures.");
     }
-    this.preLight.addChild(this.particleSystem.preLight);
-    this.postLight.addChild(this.particleSystem.postLight);
-    if (this.atmosphereSystem) this.postLight.addChild(this.atmosphereSystem.layer);
+    if (options.textures.stains) this.stainSystem = new TopDownStainSystem({
+      textures: options.textures.stains,
+      maxStains: options.maxStains,
+      onExpire: options.onStainExpire,
+      renderLayers: { "pre-light": this.preLight, "post-light": this.postLight },
+      orderCoordinator: this.orderCoordinator
+    });
   }
 
   setRoomGeometry(geometry: ParticleRoomGeometry): void {
@@ -137,19 +185,19 @@ export class TopDownEffects {
     this.atmosphereSystem?.setRoomGeometry(geometry);
   }
 
-  registerRoomEffect(recipe: ParticleRoomStyleDefinition): RegisteredRoomEffectName {
+  registerRoomEffect(recipe: ParticleRoomStyleDefinition, imageSlotOverrides?: Record<string, TopDownParticleSystemOptions["textures"][string]>): RegisteredRoomEffectName {
     this.ensureActive();
     if (recipe.id === "fog" || recipe.id === "cloud") {
       throw new Error(`'${recipe.id}' is reserved for a built-in room overlay.`);
     }
-    this.particleSystem.registerRoomStyle(recipe);
+    this.particleSystem.registerRoomStyle(recipe, imageSlotOverrides);
     this.registeredRoomEffects.add(recipe.id);
     return Object.freeze({ id: recipe.id, [registeredRoomEffectName]: true as const });
   }
 
-  registerPointStyle(recipe: ParticleStyleDefinition): void {
+  registerPointStyle(recipe: ParticleStyleDefinition, imageSlotOverrides?: Record<string, TopDownParticleSystemOptions["textures"][string]>): void {
     this.ensureActive();
-    this.particleSystem.registerStyle(recipe);
+    this.particleSystem.registerStyle(recipe, imageSlotOverrides);
   }
 
   /** Lower-level recipe registration for engine-owned point effects. */
@@ -158,9 +206,20 @@ export class TopDownEffects {
     this.particleSystem.registerEffect(recipe);
   }
 
-  setPointEffect(input: ParticleStyledEmitterInput): void {
+  #upsertPoint(input: ParticleStyledEmitterInput): void {
     this.ensureActive();
     this.particleSystem.upsertStyledEmitter(input);
+  }
+
+  /** Upsert a persistent point, room, overlay, or stain request by its stable ID. */
+  upsert(input: TopDownEffectInput): void {
+    this.ensureActive();
+    if (input.kind === "point") this.#upsertPoint(input.input);
+    else if (input.kind === "room") this.#upsertRoom(input.input);
+    else {
+      if (!this.stainSystem) throw new Error("Stains require packaged defaults from TopDownEffects.create() or explicit stain textures.");
+      this.stainSystem.upsertStain(input.input);
+    }
   }
 
   sendStimulus(input: ParticleStimulusInput): void {
@@ -178,13 +237,24 @@ export class TopDownEffects {
     this.particleSystem.setOccluders(occluders);
   }
 
-  getStats(): ParticleStats {
+  getStats(): TopDownEffectsStats {
     this.ensureActive();
-    return this.particleSystem.getStats();
+    const particleStats = this.particleSystem.getStats();
+    const stainCapacityFailures = this.stainSystem?.getCapacityFailureCount() ?? 0;
+    return {
+      ...particleStats,
+      atmosphereFields: this.atmosphereSystem?.getFieldCount() ?? 0,
+      stains: this.stainSystem?.getStainCount() ?? 0,
+      allocationFailures: {
+        particleCapacity: particleStats.droppedParticles,
+        stainCapacity: stainCapacityFailures,
+        total: particleStats.droppedParticles + stainCapacityFailures
+      }
+    };
   }
 
   /** Set or update a named room effect. */
-  setRoomEffect(input: RoomEffectInput): void {
+  #upsertRoom(input: RoomEffectInput): void {
     this.ensureActive();
     const enabled = input.enabled ?? true;
     const intensity = input.intensity ?? 1;
@@ -202,21 +272,11 @@ export class TopDownEffects {
         scalePx: input.coveragePx ?? (input.effect === "fog" ? 360 : 520),
         tint: input.tint ?? "#ffffff",
         windDirectionDegrees: input.wind?.directionDegrees ?? 0,
-        windSpeedPxPerSecond: input.wind?.speedPxPerSecond ?? 0
+        windSpeedPxPerSecond: input.wind?.speedPxPerSecond ?? 0,
+        transitionTimeMs: input.transitionTimeMs,
+        removalDurationMs: input.removalDurationMs
       };
-      if (input.effect === "fog") {
-        this.fogId = input.id;
-        this.requireAtmosphere().setFog(field);
-        return;
-      }
-      let slot = this.cloudSlots.get(input.id);
-      if (slot === undefined) {
-        const occupied = new Set(this.cloudSlots.values());
-        slot = [0, 1, 2].find(candidate => !occupied.has(candidate));
-        if (slot === undefined) throw new RangeError("At most three cloud room effects can be active.");
-        this.cloudSlots.set(input.id, slot);
-      }
-      this.requireAtmosphere().setCloudLayer(slot, field);
+      this.requireAtmosphere().setField(input.id, input.effect, input.order ?? 0, field);
       return;
     }
 
@@ -231,6 +291,7 @@ export class TopDownEffects {
       id: input.id,
       style: input.effect.id,
       active: enabled,
+      order: input.order,
       densityScale: intensity,
       sizePx: input.sizePx,
       streamSizesPx: input.effect.id === "rain" && input.rain ? {
@@ -238,6 +299,7 @@ export class TopDownEffects {
         ...(input.rain.rippleSizePx === undefined ? {} : { splash: input.rain.rippleSizePx })
       } : undefined,
       colors: input.colors,
+      colorChangeMode: input.colorChangeMode,
       lifetimeSeconds: input.lifetimeSeconds,
       colorTransitionSeconds: input.colorTransitionSeconds,
       surge: input.surge,
@@ -250,50 +312,32 @@ export class TopDownEffects {
   remove(id: string): void {
     this.ensureActive();
     this.particleSystem.removeEmitter(id);
-    if (this.fogId === id) {
-      this.fogId = null;
-      this.requireAtmosphere().setFog({ enabled: false });
-    }
-    const slot = this.cloudSlots.get(id);
-    if (slot !== undefined) {
-      this.cloudSlots.delete(id);
-      this.requireAtmosphere().setCloudLayer(slot, { enabled: false });
-    }
-  }
-
-  removePointEffect(id: string): void {
-    this.ensureActive();
-    this.particleSystem.removeEmitter(id);
-  }
-
-  removeEmitter(id: string): void {
-    this.removePointEffect(id);
+    this.atmosphereSystem?.removeField(id);
+    this.stainSystem?.removeStain(id);
   }
 
   update(timeSeconds: number): void {
     this.ensureActive();
     this.particleSystem.update(timeSeconds);
     this.atmosphereSystem?.update(timeSeconds);
+    this.stainSystem?.update(timeSeconds);
   }
 
   clear(): void {
     this.ensureActive();
     this.particleSystem.clear();
-    this.fogId = null;
-    this.cloudSlots.clear();
-    if (this.atmosphereSystem) {
-      this.atmosphereSystem.setFog({ enabled: false });
-      for (let slot = 0; slot < 3; slot++) this.atmosphereSystem.setCloudLayer(slot, { enabled: false });
-      this.atmosphereSystem.resetClock();
-    }
+    this.atmosphereSystem?.clear();
+    this.stainSystem?.clear();
+    this.stainSystem?.resetClock();
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.particleSystem.dispose();
     this.atmosphereSystem?.dispose();
-    this.preLight.destroy({ children: false });
-    this.postLight.destroy({ children: false });
+    this.stainSystem?.dispose();
+    this.preLight.destroy({ children: true });
+    this.postLight.destroy({ children: true });
     this.disposed = true;
   }
 

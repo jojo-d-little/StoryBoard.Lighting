@@ -26,6 +26,7 @@ export interface NormalizedStream extends Omit<ParticleStreamDefinition,
 
 export interface NormalizedEffect {
   id: string;
+  removalDurationMs?: number | null;
   streams: NormalizedStream[];
 }
 
@@ -134,6 +135,11 @@ export function normalizeOccluder(input: ParticleOccluderInput): ParticleOcclude
 }
 
 export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter {
+  const colorChangeMode = input.colorChangeMode ?? "birth-snapshot";
+  if (colorChangeMode !== "birth-snapshot" && colorChangeMode !== "retint") {
+    throw new TypeError("colorChangeMode must be birth-snapshot or retint.");
+  }
+  const order = finite(input.order ?? 0, "order");
   const overrides: Record<string, ParticleStreamOverrides> = {};
   for (const [streamId, source] of Object.entries(input.streamOverrides ?? {})) {
     const result: ParticleStreamOverrides = {};
@@ -199,12 +205,18 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
     yPx: finite(input.yPx, "emitter yPx"),
     active: input.active ?? true,
     surge,
+    colorChangeMode,
+    order,
     streamOverrides: overrides
   };
 }
 
 export function normalizeEffect(input: ParticleEffectDefinition): NormalizedEffect {
   const id = identifier(input.id, "effect ID");
+  if (input.removalDurationMs !== undefined && input.removalDurationMs !== null &&
+      (!Number.isFinite(input.removalDurationMs) || input.removalDurationMs < 0)) {
+    throw new RangeError("removalDurationMs must be null or a nonnegative finite number.");
+  }
   if (!Array.isArray(input.streams) || input.streams.length === 0) {
     throw new TypeError("An effect needs at least one stream.");
   }
@@ -299,7 +311,7 @@ export function normalizeEffect(input: ParticleEffectDefinition): NormalizedEffe
     if (!target) throw new Error(`Unknown onDeathStreamId '${stream.onDeathStreamId}' in effect '${id}'.`);
     if (target.onDeathStreamId) throw new Error("A timed follow-up stream cannot start another follow-up stream.");
   }
-  return { id, streams };
+  return { id, removalDurationMs: input.removalDurationMs, streams };
 }
 
 export function mixColor(start: number, end: number, fraction: number): number {

@@ -44,12 +44,174 @@ describe("TopDownParticleSystem", () => {
     expect(recolorStyleColor("#fff1a8", "#ff9d34", "#4488ff")).toBe("#b8bbff");
   });
 
+  it("orders emitter instances numerically and breaks ties by stable ID", () => {
+    const particles = system();
+    try {
+      for (const [id, order, color] of [["zeta", 0, "#0000ff"], ["alpha", 0, "#ff0000"], ["middle", -1, "#00ff00"]] as const) {
+        particles.upsertEmitter({
+          id, effectId: "test", xPx: 20, yPx: 20, order,
+          streamOverrides: { dots: { startColor: color, endColor: color } }
+        });
+      }
+      particles.update(0);
+      particles.update(1 / 60);
+      const orderedContainers = () => [...particles.preLight.children]
+        .sort((a, b) => a.zIndex - b.zIndex) as ParticleContainer[];
+      const colorsInOrder = () => orderedContainers().map(container => container.particleChildren[0]?.tint);
+      expect(colorsInOrder()).toEqual([0x00ff00, 0xff0000, 0x0000ff]);
+
+      particles.upsertEmitter({
+        id: "zeta", effectId: "test", xPx: 20, yPx: 20, order: -2,
+        streamOverrides: { dots: { startColor: "#0000ff", endColor: "#0000ff" } }
+      });
+      expect(colorsInOrder()).toEqual([0x0000ff, 0x00ff00, 0xff0000]);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("stops emission and lets natural-removal particles decay", () => {
+    const particles = system();
+    try {
+      particles.upsertEmitter({ id: "natural", effectId: "test", xPx: 20, yPx: 20 });
+      particles.update(0);
+      particles.update(1 / 60);
+      expect(particles.getStats().liveParticles).toBe(1);
+      particles.upsertEmitter({ id: "natural", effectId: "test", xPx: 20, yPx: 20, active: false });
+      expect(particles.getStats().activeEmitters).toBe(0);
+      expect(particles.getStats().liveParticles).toBe(1);
+      for (let frame = 2; frame <= 122; frame++) particles.update(frame / 60);
+      expect(particles.getStats().liveParticles).toBe(0);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("releases retired emitter groups and clears their pooled containers", () => {
+    const particles = system();
+    try {
+      particles.upsertEmitter({ id: "short-lived", effectId: "test", xPx: 20, yPx: 20 });
+      particles.update(0);
+      particles.update(1 / 60);
+      expect(particles.preLight.children).toHaveLength(1);
+
+      particles.removeEmitter("short-lived");
+      expect(particles.preLight.children).toHaveLength(1);
+      for (let frame = 2; frame <= 122; frame++) particles.update(frame / 60);
+      expect(particles.getStats().liveParticles).toBe(0);
+      expect(particles.preLight.children).toHaveLength(0);
+
+      particles.registerEffect({ ...effect, id: "immediate-cleanup", removalDurationMs: 0 });
+      for (let index = 0; index < 20; index++) {
+        const id = `short-burst-${index}`;
+        particles.upsertEmitter({ id, effectId: "immediate-cleanup", xPx: 20, yPx: 20 });
+        particles.update((123 + index * 2) / 60);
+        particles.update((124 + index * 2) / 60);
+        particles.removeEmitter(id);
+        expect(particles.preLight.children).toHaveLength(0);
+      }
+
+      particles.upsertEmitter({ id: "cleared", effectId: "test", xPx: 20, yPx: 20 });
+      particles.update(3);
+      particles.update(3 + 1 / 60);
+      expect(particles.preLight.children).toHaveLength(1);
+      particles.clear();
+      expect(particles.preLight.children).toHaveLength(0);
+      expect(particles.getStats().liveParticles).toBe(0);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("supports immediate removal and a cancellable timed fade without an alpha jump", () => {
+    const particles = system();
+    try {
+      particles.registerEffect({ ...effect, id: "immediate", removalDurationMs: 0 });
+      particles.upsertEmitter({ id: "immediate-id", effectId: "immediate", xPx: 20, yPx: 20 });
+      particles.update(0);
+      particles.update(1 / 60);
+      expect(particles.getStats().liveParticles).toBe(1);
+      particles.removeEmitter("immediate-id");
+      expect(particles.getStats().liveParticles).toBe(0);
+
+      particles.registerEffect({ ...effect, id: "timed", removalDurationMs: 1000 });
+      particles.upsertEmitter({ id: "timed-id", effectId: "timed", xPx: 20, yPx: 20 });
+      particles.update(2 / 60);
+      particles.update(3 / 60);
+      const group = particles.preLight.children.find((child: any) => child.particleChildren?.length) as ParticleContainer;
+      const particle = group.particleChildren[group.particleChildren.length - 1];
+      particles.removeEmitter("timed-id");
+      particles.update(4 / 60);
+      const fadedAlpha = particle.alpha;
+      expect(fadedAlpha).toBeLessThan(1);
+      particles.upsertEmitter({ id: "timed-id", effectId: "timed", xPx: 20, yPx: 20 });
+      particles.update(5 / 60);
+      expect(Math.abs(particle.alpha - fadedAlpha)).toBeLessThan(0.02);
+      for (let frame = 6; frame <= 20; frame++) particles.update(frame / 60);
+      expect(particle.alpha).toBeGreaterThan(fadedAlpha);
+      expect(particles.getStats().activeEmitters).toBe(1);
+
+      particles.removeEmitter("timed-id");
+      for (let frame = 21; frame <= 82; frame++) particles.update(frame / 60);
+      expect(particles.getStats().activeEmitters).toBe(0);
+      expect(particles.getStats().liveParticles).toBeGreaterThan(0);
+      expect(particles.preLight.children).toHaveLength(1);
+      for (let frame = 83; frame <= 150; frame++) particles.update(frame / 60);
+      expect(particles.getStats().liveParticles).toBe(0);
+      expect(particles.preLight.children).toHaveLength(0);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("keeps birth-snapshot colors by default and retints living particles at their current color-over-life progress", () => {
+    const particles = system();
+    try {
+      const emitter = {
+        id: "color-mode", effectId: "test", xPx: 30, yPx: 30,
+        streamOverrides: {
+          dots: { ratePerSecond: 60, lifeMinSeconds: 2, lifeMaxSeconds: 2, startColor: "#ff0000",
+            endColor: "#00ff00", colorTransitionFraction: 0.5 }
+        }
+      };
+      particles.upsertEmitter(emitter);
+      particles.update(0);
+      particles.update(0.25);
+      const group = particles.preLight.children[0] as ParticleContainer;
+      const existing = group.particleChildren.find(particle => particle.tint !== 0xff0000)!;
+      expect(existing).toBeDefined();
+      const oldColor = existing.tint;
+
+      const changed = {
+        ...emitter,
+        streamOverrides: {
+          dots: { ...emitter.streamOverrides.dots, startColor: "#0000ff", endColor: "#ffffff" }
+        }
+      };
+      particles.upsertEmitter(changed);
+      expect(existing.tint).toBe(oldColor);
+      particles.update(0.26);
+      const oldProgress = (((existing.tint as number) >>> 8) & 0xff) / 255;
+      expect(oldProgress).toBeGreaterThan(0);
+
+      particles.upsertEmitter({ ...changed, colorChangeMode: "retint" });
+      const retinted = existing.tint as number;
+      const red = (retinted >>> 16) & 0xff;
+      const green = (retinted >>> 8) & 0xff;
+      expect(Math.abs(red - green)).toBeLessThanOrEqual(1);
+      expect(retinted & 0xff).toBe(0xff);
+      expect(red / 255).toBeCloseTo(oldProgress, 1);
+    } finally {
+      particles.dispose();
+    }
+  });
+
   it("spawns smoke inside the configured outer radius and outside its clear radius", () => {
     const particles = system();
     try {
       particles.registerStyle({
         id: "smoke-ring", defaultColor: "#ffffff", defaultSmokeColor: "#aaaaaa",
-        baseRadiusPx: 20, colorStreamIds: ["smoke"], flameStreamIds: [],
+        baseRadiusPx: 20, colorControlStreamIds: ["smoke"], flameStreamIds: [],
         smokeStreamIds: ["smoke"], emberStreamIds: [],
         streams: [{ ...effect.streams[0], id: "smoke", spawn: { kind: "point", radiusPx: 20 }, occludeByCells: false }]
       });
@@ -124,7 +286,7 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "directional-style", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
-        baseRadiusPx: 1, colorStreamIds: ["dots"], flameStreamIds: ["dots"],
+        baseRadiusPx: 1, colorControlStreamIds: ["dots"], flameStreamIds: ["dots"],
         smokeStreamIds: [], emberStreamIds: [],
         streams: [{ ...effect.streams[0], spawn: { kind: "point", radiusPx: 0 },
           velocityXMinPxPerSecond: 0, velocityXMaxPxPerSecond: 0,
@@ -149,7 +311,7 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "authored-smoke-ring", defaultColor: "#ffffff", defaultSmokeColor: "#aaaaaa",
-        baseRadiusPx: 9, colorStreamIds: ["smoke"], flameStreamIds: [],
+        baseRadiusPx: 9, colorControlStreamIds: ["smoke"], flameStreamIds: [],
         smokeStreamIds: ["smoke"], emberStreamIds: [],
         streams: [{ ...effect.streams[0], id: "smoke", spawn: { kind: "point", radiusPx: 20, innerRadiusPx: 10 }, occludeByCells: false }]
       });
@@ -174,7 +336,7 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "wind-smoke", defaultColor: "#ffffff", defaultSmokeColor: "#aaaaaa",
-        baseRadiusPx: 1, colorStreamIds: ["smoke"], flameStreamIds: [],
+        baseRadiusPx: 1, colorControlStreamIds: ["smoke"], flameStreamIds: [],
         smokeStreamIds: ["smoke"], emberStreamIds: [],
         streams: [{ ...effect.streams[0], id: "smoke", spawn: { kind: "point", radiusPx: 0 }, occludeByCells: false }]
       });
@@ -231,7 +393,7 @@ describe("TopDownParticleSystem", () => {
         defaultColor: "#ffffff",
         defaultSmokeColor: "#888888",
         baseRadiusPx: 4,
-        colorStreamIds: ["body"],
+        colorControlStreamIds: ["body"],
         flameStreamIds: ["body"],
         smokeStreamIds: [],
         emberStreamIds: [],
@@ -265,7 +427,7 @@ describe("TopDownParticleSystem", () => {
         defaultColor: "#ffffff",
         defaultSmokeColor: "#888888",
         baseRadiusPx: 4,
-        colorStreamIds: ["body"],
+        colorControlStreamIds: ["body"],
         flameStreamIds: ["body"],
         smokeStreamIds: ["smoke"],
         emberStreamIds: [],
@@ -302,7 +464,7 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "split-fire", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
-        baseRadiusPx: 4, colorStreamIds: ["body"], flameStreamIds: ["body"],
+        baseRadiusPx: 4, colorControlStreamIds: ["body"], flameStreamIds: ["body"],
         smokeStreamIds: ["smoke"], emberStreamIds: [],
         streams: [
           { ...effect.streams[0], id: "body", occludeByCells: false },
@@ -313,11 +475,12 @@ describe("TopDownParticleSystem", () => {
       particles.upsertStyledEmitter({ id: "smoke", style: "split-fire", streamGroup: "smoke", xPx: 90, yPx: 80, radiusPx: 0 });
       particles.update(0);
       particles.update(1 / 60);
-      const group = particles.preLight.children[0] as ParticleContainer;
-      expect(group.particleChildren.map(child => [child.x, child.y])).toEqual([[20, 30], [90, 80]]);
+      const particlesByEmitter = () => [...particles.preLight.children]
+        .flatMap(child => (child as ParticleContainer).particleChildren.map(particle => [particle.x, particle.y]));
+      expect(particlesByEmitter()).toEqual([[20, 30], [90, 80]]);
       particles.upsertStyledEmitter({ id: "smoke", style: "split-fire", streamGroup: "smoke", xPx: 110, yPx: 70, radiusPx: 0 });
       particles.update(2 / 60);
-      expect(group.particleChildren.map(child => [child.x, child.y])).toEqual([[20, 30], [90, 80], [20, 30], [110, 70]]);
+      expect(particlesByEmitter()).toEqual([[20, 30], [20, 30], [90, 80], [110, 70]]);
     } finally {
       particles.dispose();
     }
@@ -328,8 +491,8 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerRoomStyle({
         id: "snow", defaultColors: { primary: "#ffffff", secondary: "#808080" },
-        colorBindings: { flake: "transition" }, windStreamIds: ["flake"],
-        temporalColorStreamIds: ["flake"],
+        colorBindings: { flake: "transition" }, windBlownStreamIds: ["flake"],
+        colorTransitionControlStreamIds: ["flake"],
         streams: [{ ...effect.streams[0], id: "flake", spawn: { kind: "room" },
           endColor: "#808080", occludeByCells: false }]
       });
@@ -367,7 +530,7 @@ describe("TopDownParticleSystem", () => {
         defaultLifetimeSeconds: 2,
         defaultColorTransitionSeconds: 0.5,
         colorBindings: { dots: "transition" },
-        temporalColorStreamIds: ["dots"],
+        colorTransitionControlStreamIds: ["dots"],
         streams: [{ ...effect.streams[0], spawn: { kind: "room" }, occludeByCells: false }]
       });
       particles.upsertRoomEmitter({
@@ -463,7 +626,7 @@ describe("TopDownParticleSystem", () => {
         defaultEmissionRatePerSecond: 120,
         defaultSizePx: 4,
         colorBindings: { drops: "primary", splash: "secondary" },
-        windStreamIds: ["drops"],
+        windBlownStreamIds: ["drops"],
         windStretchStreamIds: ["drops"],
         streams: [
           { ...effect.streams[0], id: "drops", spawn: { kind: "room" }, occludeByCells: false },
@@ -491,7 +654,9 @@ describe("TopDownParticleSystem", () => {
       });
       particles.update(0);
       particles.update(1 / 60);
-      const calmDrop = (particles.preLight.children[0] as ParticleContainer).particleChildren[0];
+      const calmDrop = [...particles.preLight.children]
+        .flatMap(child => (child as ParticleContainer).particleChildren)
+        .find(particle => particle.scaleX === 4)!;
       expect(calmDrop.scaleX).toBe(4);
       expect(calmDrop.scaleY).toBe(4);
       expect(calmDrop.rotation).toBe(0);
@@ -506,7 +671,7 @@ describe("TopDownParticleSystem", () => {
       particles.registerStyle({
         id: "two-color-flame", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
         defaultColors: { primary: "#ffffff", secondary: "#808080" },
-        baseRadiusPx: 1, colorStreamIds: ["body"], flameStreamIds: ["body"],
+        baseRadiusPx: 1, colorControlStreamIds: ["body"], flameStreamIds: ["body"],
         smokeStreamIds: [], emberStreamIds: [], colorBindings: { body: "transition" },
         streams: [{ ...effect.streams[0], id: "body", endColor: "#808080", occludeByCells: false }]
       });
@@ -533,7 +698,7 @@ describe("TopDownParticleSystem", () => {
       particles.registerStyle({
         id: "advanced-fire", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
         defaultColors: { primary: "#ffffff", secondary: "#888888" }, baseRadiusPx: 2,
-        colorStreamIds: ["flame", "tip"], flameStreamIds: ["flame", "tip"],
+        colorControlStreamIds: ["flame", "tip"], flameStreamIds: ["flame", "tip"],
         smokeStreamIds: ["smoke"], emberStreamIds: [],
         streams: [
           { ...stream, id: "flame", ratePerSecond: 60, startWidthPx: 4, startHeightPx: 4, lifeMinSeconds: 1, lifeMaxSeconds: 2 },
@@ -574,7 +739,7 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "reset-fire", defaultColor: "#ffffff", defaultSmokeColor: "#888888",
-        baseRadiusPx: 1, colorStreamIds: ["flame"], flameStreamIds: ["flame"],
+        baseRadiusPx: 1, colorControlStreamIds: ["flame"], flameStreamIds: ["flame"],
         smokeStreamIds: [], emberStreamIds: [],
         streams: [{ ...effect.streams[0], id: "flame", ratePerSecond: 60, startWidthPx: 4, startHeightPx: 4 }]
       });
@@ -838,9 +1003,9 @@ describe("TopDownParticleSystem", () => {
       particles.registerStyle({
         id: "wall-debris-lifetime",
         defaultColor: "#806448", defaultSmokeColor: "#806448", baseRadiusPx: 3,
-        colorStreamIds: ["flying-chips", "settled-rubble"],
+        colorControlStreamIds: ["flying-chips", "settled-rubble"],
         flameStreamIds: [], smokeStreamIds: [], emberStreamIds: [],
-        lifetimeStreamIds: ["flying-chips"],
+        lifetimeControlStreamIds: ["flying-chips"],
         streams: [
           { ...effect.streams[0], id: "flying-chips", ratePerSecond: 0, surgeOnly: true,
             lifeMinSeconds: 0.4, lifeMaxSeconds: 0.6, onDeathStreamId: "settled-rubble" },
@@ -870,8 +1035,8 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "wind-stimulus-style", defaultColor: "#ffffff", defaultSmokeColor: "#aaaaaa",
-        baseRadiusPx: 1, colorStreamIds: ["dots"], flameStreamIds: ["dots"],
-        smokeStreamIds: [], emberStreamIds: [], windStreamIds: ["dots"], windNudgeFadeOutSeconds: 0.8,
+        baseRadiusPx: 1, colorControlStreamIds: ["dots"], flameStreamIds: ["dots"],
+        smokeStreamIds: [], emberStreamIds: [], windBlownStreamIds: ["dots"], windNudgeFadeOutSeconds: 0.8,
         streams: [{ ...effect.streams[0], id: "dots", spawn: { kind: "point", radiusPx: 0 },
           velocityXMinPxPerSecond: 0, velocityXMaxPxPerSecond: 0,
           velocityYMinPxPerSecond: 0, velocityYMaxPxPerSecond: 0 }]
@@ -909,8 +1074,8 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerStyle({
         id: "orbit-wind-style", defaultColor: "#ffffff", defaultSmokeColor: "#aaaaaa",
-        baseRadiusPx: 1, colorStreamIds: ["bugs"], flameStreamIds: ["bugs"],
-        smokeStreamIds: [], emberStreamIds: [], windStreamIds: ["bugs"],
+        baseRadiusPx: 1, colorControlStreamIds: ["bugs"], flameStreamIds: ["bugs"],
+        smokeStreamIds: [], emberStreamIds: [], windBlownStreamIds: ["bugs"],
         streams: [{ ...effect.streams[0], id: "bugs", ratePerSecond: 30,
           spawn: { kind: "point", radiusPx: 0 }, orbitAngularSpeedRadiansPerSecond: 3.8,
           lifeMinSeconds: 5, lifeMaxSeconds: 5,
@@ -948,8 +1113,8 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerRoomStyle({
         id: "edge-leaves", defaultColors: { primary: "#b87835", secondary: "#71512e" },
-        colorBindings: { leaves: "transition" }, windStreamIds: ["leaves"],
-        edgeFlowStreamIds: ["leaves"], defaultEmissionRatePerSecond: 60,
+        colorBindings: { leaves: "transition" }, windBlownStreamIds: ["leaves"],
+        windEdgeFlowStreamIds: ["leaves"], defaultEmissionRatePerSecond: 60,
         defaultSizePx: 4, defaultLifetimeSeconds: 0.1,
         streams: [{ ...effect.streams[0], id: "leaves", ratePerSecond: 60,
           spawn: { kind: "room" }, lifeMinSeconds: 2, lifeMaxSeconds: 3,
@@ -987,8 +1152,8 @@ describe("TopDownParticleSystem", () => {
       try {
         particles.registerRoomStyle({
           id: "wind-mixed-leaves", defaultColors: { primary: "#b87835", secondary: "#71512e" },
-          colorBindings: { leaves: "flip" }, windStreamIds: ["leaves"],
-          edgeFlowStreamIds: ["leaves"],
+          colorBindings: { leaves: "flip" }, windBlownStreamIds: ["leaves"],
+          windEdgeFlowStreamIds: ["leaves"],
           windMotionMix: {
             streamIds: ["leaves"], maxWindSpeedPxPerSecond: 40,
             lowWindSkitterFraction: 0.2, highWindSkitterFraction: 0.08
@@ -1023,7 +1188,7 @@ describe("TopDownParticleSystem", () => {
     try {
       particles.registerRoomStyle({
         id: "flipping-leaves", defaultColors: { primary: "#ff0000", secondary: "#0000ff" },
-        colorBindings: { leaves: "flip" }, windStreamIds: ["leaves"], edgeFlowStreamIds: ["leaves"],
+        colorBindings: { leaves: "flip" }, windBlownStreamIds: ["leaves"], windEdgeFlowStreamIds: ["leaves"],
         defaultEmissionRatePerSecond: 20, defaultSizePx: 8, defaultLifetimeSeconds: 3,
         streams: [{ ...effect.streams[0], id: "leaves", ratePerSecond: 20, spawn: { kind: "room" },
           lifeMinSeconds: 3, lifeMaxSeconds: 3, velocityXMinPxPerSecond: 0, velocityXMaxPxPerSecond: 0,
@@ -1052,7 +1217,7 @@ describe("TopDownParticleSystem", () => {
       particles.registerRoomStyle({
         id: "six-color-leaves", defaultColors: { primary: "#ffffff", secondary: "#000000" },
         colorBindings: { oak: "flip", maple: "flip", oval: "flip" },
-        windStreamIds: streamIds, edgeFlowStreamIds: streamIds,
+        windBlownStreamIds: streamIds, windEdgeFlowStreamIds: streamIds,
         defaultEmissionRatePerSecond: 90, defaultSizePx: 8, defaultLifetimeSeconds: 200,
         streams: streamIds.map(id => ({ ...effect.streams[0], id, textureId: "dot", ratePerSecond: 30,
           spawn: { kind: "room" as const }, lifeMinSeconds: 200, lifeMaxSeconds: 200,
@@ -1094,7 +1259,7 @@ describe("TopDownParticleSystem", () => {
       particles.registerStyle({
         id: "three-color-flame", defaultColor: "#ff8000", defaultSmokeColor: "#888888",
         defaultColors: { primary: "#ff8000", secondary: "#aa2200" }, defaultTipColor: "#fff0b0",
-        baseRadiusPx: 1, colorStreamIds: ["body", "tip"], flameStreamIds: ["body", "tip"],
+        baseRadiusPx: 1, colorControlStreamIds: ["body", "tip"], flameStreamIds: ["body", "tip"],
         smokeStreamIds: [], emberStreamIds: [], colorBindings: { body: "transition", tip: 2 },
         streams: [
           { ...effect.streams[0], id: "body", endColor: "#aa2200", spawn: { kind: "point", radiusPx: 0 }, occludeByCells: false },

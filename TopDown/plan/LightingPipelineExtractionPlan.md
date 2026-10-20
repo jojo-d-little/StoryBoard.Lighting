@@ -311,16 +311,28 @@ Completion criteria:
 
 ### Step 7: Separate submission from rendering
 
-- Make `submitFrame` update state and dirty flags.
+Status: partially implemented. `submitFrame()` stores the latest normalized
+lighting state, and `renderFrame(timeSeconds)` is the explicit render boundary
+with host-supplied time. The component has no animation loop or browser ticker.
+However, each `renderFrame()` call currently executes all four rendering
+passes, even when a static scene has not changed. Dirty-state tracking and
+skipping static renders remain open work.
+
+- Make `submitFrame` update state and dirty flags. **Open:** state changes are
+  not currently tracked as dirty flags.
 - Make `renderFrame(timeSeconds)` the explicit render boundary.
-- Allow static scenes to render only when dirty.
+- Allow static scenes to render only when dirty. **Open:** static render
+  skipping is not implemented; unchanged state is still rendered on every
+  `renderFrame()` call.
 - Allow animated scenes to render with new timestamps without resubmitting unchanged world state.
 
 Completion criteria:
 
-- A static scene can submit and render once.
-- An animated scene can render repeatedly using only updated time.
-- No component-owned animation loop or browser ticker is required.
+- **Met:** submission and rendering are separate; an animated scene can render
+  repeatedly using only updated time.
+- **Open:** a static scene can submit and render once, then skip subsequent
+  renders until its state becomes dirty.
+- **Met:** no component-owned animation loop or browser ticker is required.
 
 ### Step 8: Reduce the HTML to a test harness adapter
 

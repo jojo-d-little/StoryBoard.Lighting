@@ -426,7 +426,7 @@
   "styles": [
     {
       "id": "campfire", "label": "Campfire", "defaultColor": "#ffb13b", "baseRadiusPx": 9,
-      "defaultSmokeColor": "#a5a1a0", "colorStreamIds": ["flame", "embers"],
+      "defaultSmokeColor": "#a5a1a0", "colorControlStreamIds": ["flame", "embers"],
       "defaultColors": { "primary": "#ffb13b", "secondary": "#ff3c12" },
       "defaultTipColor": "#fff0b0",
       "tipColorLabel": "Flame tip color",
@@ -435,12 +435,12 @@
       "smokeColorLabels": { "primary": "Dense smoke", "secondary": "Thin smoke" },
       "colorBindings": { "flame": "transition", "tip": 2, "smoke": "transition", "embers": "transition" },
       "flameStreamIds": ["flame", "tip"], "smokeStreamIds": ["smoke"], "emberStreamIds": ["embers"],
-      "windStreamIds": ["smoke"],
+      "windBlownStreamIds": ["smoke"],
       "defaultLayers": { "flame": "pre-light", "smoke": "pre-light", "embers": "post-light" }
     },
     {
       "id": "torch", "label": "Torch", "defaultColor": "#fff2a1", "baseRadiusPx": 3,
-      "defaultSmokeColor": "#a8a4a0", "colorStreamIds": ["body", "core", "embers"],
+      "defaultSmokeColor": "#a8a4a0", "colorControlStreamIds": ["body", "core", "embers"],
       "defaultColors": { "primary": "#fff2a1", "secondary": "#f28a28" },
       "defaultTipColor": "#fff0b0",
       "tipColorLabel": "Flame tip color",
@@ -449,12 +449,12 @@
       "smokeColorLabels": { "primary": "Dense smoke", "secondary": "Thin smoke" },
       "colorBindings": { "body": "transition", "core": "primary", "tip": 2, "smoke": "transition", "embers": "transition" },
       "flameStreamIds": ["body", "core", "tip"], "smokeStreamIds": ["smoke"], "emberStreamIds": ["embers"],
-      "windStreamIds": ["smoke"],
+      "windBlownStreamIds": ["smoke"],
       "defaultLayers": { "flame": "post-light", "smoke": "pre-light", "embers": "post-light" }
     },
     {
       "id": "candle", "label": "Candle", "defaultColor": "#fff2a1", "baseRadiusPx": 1,
-      "defaultSmokeColor": "#aaa6a0", "colorStreamIds": ["flame", "core"],
+      "defaultSmokeColor": "#aaa6a0", "colorControlStreamIds": ["flame", "core"],
       "defaultColors": { "primary": "#fff2a1", "secondary": "#f28a28" },
       "defaultTipColor": "#fff0b0",
       "tipColorLabel": "Flame tip color",
@@ -463,17 +463,17 @@
       "smokeColorLabels": { "primary": "Thin smoke", "secondary": "Fading smoke" },
       "colorBindings": { "flame": "transition", "core": "primary", "tip": 2, "smoke": "transition" },
       "flameStreamIds": ["flame", "core", "tip"], "smokeStreamIds": ["smoke"], "emberStreamIds": [],
-      "windStreamIds": ["smoke"],
+      "windBlownStreamIds": ["smoke"],
       "defaultLayers": { "flame": "post-light", "smoke": "pre-light", "embers": "post-light" }
     },
-    {"id":"water-spatter","label":"Water Spatter","defaultColor":"#d9f5ff","defaultSmokeColor":"#d9f5ff","baseRadiusPx":2,"colorStreamIds":["particles"],"defaultColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"defaultSmokeColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"colorBindings":{"particles":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["particles"]},
-    {"id":"electrical-sparks","label":"Electrical Sparks","defaultColor":"#fff7b0","defaultSmokeColor":"#fff7b0","baseRadiusPx":1,"colorStreamIds":["particles"],"defaultColors":{"primary":"#fff7b0","secondary":"#4feaff"},"defaultSmokeColors":{"primary":"#fff7b0","secondary":"#4feaff"},"colorBindings":{"particles":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["particles"]},
-    {"id":"wall-debris","label":"Wall Debris Pile","defaultColor":"#806448","defaultSmokeColor":"#806448","baseRadiusPx":3,"colorStreamIds":["flying-chips","settled-rubble"],"defaultColors":{"primary":"#806448","secondary":"#c3a47c"},"defaultSmokeColors":{"primary":"#806448","secondary":"#c3a47c"},"colorBindings":{"flying-chips":"transition","settled-rubble":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"lifetimeStreamIds":["flying-chips"]},
-    {"id":"pipe-steam","label":"Pipe Steam","defaultColor":"#d9e1e3","defaultSmokeColor":"#d9e1e3","baseRadiusPx":2,"colorStreamIds":["puffs"],"defaultColors":{"primary":"#d9e1e3","secondary":"#f0f2ef"},"defaultSmokeColors":{"primary":"#d9e1e3","secondary":"#f0f2ef"},"colorBindings":{"puffs":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["puffs"]},
-    {"id":"impact-dust","label":"Impact Dust Puff","defaultColor":"#b89a78","defaultSmokeColor":"#b89a78","baseRadiusPx":1,"colorStreamIds":["puff"],"defaultColors":{"primary":"#b89a78","secondary":"#dfcdb5"},"defaultSmokeColors":{"primary":"#b89a78","secondary":"#dfcdb5"},"colorBindings":{"puff":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["puff"]},
-    {"id":"leaking-drip","label":"Leaking Drip","defaultColor":"#d9f5ff","defaultSmokeColor":"#d9f5ff","baseRadiusPx":1,"colorStreamIds":["drops"],"defaultColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"defaultSmokeColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"colorBindings":{"drops":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["drops"]},
-    {"id":"insect-orbit","label":"Insect Orbit","defaultColor":"#f4dd83","defaultSmokeColor":"#f4dd83","baseRadiusPx":24,"colorStreamIds":["bugs"],"defaultColors":{"primary":"#f4dd83","secondary":"#c8a94f"},"defaultSmokeColors":{"primary":"#f4dd83","secondary":"#c8a94f"},"colorBindings":{"bugs":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["bugs"]},
-    {"id":"magic-aura","label":"Magic Aura","defaultColor":"#a987ff","defaultSmokeColor":"#a987ff","baseRadiusPx":20,"colorStreamIds":["motes"],"defaultColors":{"primary":"#a987ff","secondary":"#64d8ff"},"defaultSmokeColors":{"primary":"#a987ff","secondary":"#64d8ff"},"colorBindings":{"motes":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["motes"]},
-    {"id":"toxic-cloud","label":"Toxic Cloud","defaultColor":"#75a83d","defaultSmokeColor":"#75a83d","baseRadiusPx":15,"colorStreamIds":["cloud"],"defaultColors":{"primary":"#75a83d","secondary":"#c2d865"},"defaultSmokeColors":{"primary":"#75a83d","secondary":"#c2d865"},"colorBindings":{"cloud":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windStreamIds":["cloud"],"windNudgeFadeOutSeconds":0.8}
+    {"id":"water-spatter","label":"Water Spatter","defaultColor":"#d9f5ff","defaultSmokeColor":"#d9f5ff","baseRadiusPx":2,"colorControlStreamIds":["particles"],"defaultColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"defaultSmokeColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"colorBindings":{"particles":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["particles"]},
+    {"id":"electrical-sparks","label":"Electrical Sparks","defaultColor":"#fff7b0","defaultSmokeColor":"#fff7b0","baseRadiusPx":1,"colorControlStreamIds":["particles"],"defaultColors":{"primary":"#fff7b0","secondary":"#4feaff"},"defaultSmokeColors":{"primary":"#fff7b0","secondary":"#4feaff"},"colorBindings":{"particles":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["particles"]},
+    {"id":"wall-debris","label":"Wall Debris Pile","defaultColor":"#806448","defaultSmokeColor":"#806448","baseRadiusPx":3,"colorControlStreamIds":["flying-chips","settled-rubble"],"defaultColors":{"primary":"#806448","secondary":"#c3a47c"},"defaultSmokeColors":{"primary":"#806448","secondary":"#c3a47c"},"colorBindings":{"flying-chips":"transition","settled-rubble":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"lifetimeControlStreamIds":["flying-chips"]},
+    {"id":"pipe-steam","label":"Pipe Steam","defaultColor":"#d9e1e3","defaultSmokeColor":"#d9e1e3","baseRadiusPx":2,"colorControlStreamIds":["puffs"],"defaultColors":{"primary":"#d9e1e3","secondary":"#f0f2ef"},"defaultSmokeColors":{"primary":"#d9e1e3","secondary":"#f0f2ef"},"colorBindings":{"puffs":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["puffs"]},
+    {"id":"impact-dust","label":"Impact Dust Puff","defaultColor":"#b89a78","defaultSmokeColor":"#b89a78","baseRadiusPx":1,"colorControlStreamIds":["puff"],"defaultColors":{"primary":"#b89a78","secondary":"#dfcdb5"},"defaultSmokeColors":{"primary":"#b89a78","secondary":"#dfcdb5"},"colorBindings":{"puff":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["puff"]},
+    {"id":"leaking-drip","label":"Leaking Drip","defaultColor":"#d9f5ff","defaultSmokeColor":"#d9f5ff","baseRadiusPx":1,"colorControlStreamIds":["drops"],"defaultColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"defaultSmokeColors":{"primary":"#d9f5ff","secondary":"#8bc9e8"},"colorBindings":{"drops":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["drops"]},
+    {"id":"insect-orbit","label":"Insect Orbit","defaultColor":"#f4dd83","defaultSmokeColor":"#f4dd83","baseRadiusPx":24,"colorControlStreamIds":["bugs"],"defaultColors":{"primary":"#f4dd83","secondary":"#c8a94f"},"defaultSmokeColors":{"primary":"#f4dd83","secondary":"#c8a94f"},"colorBindings":{"bugs":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["bugs"]},
+    {"id":"magic-aura","label":"Magic Aura","defaultColor":"#a987ff","defaultSmokeColor":"#a987ff","baseRadiusPx":20,"colorControlStreamIds":["motes"],"defaultColors":{"primary":"#a987ff","secondary":"#64d8ff"},"defaultSmokeColors":{"primary":"#a987ff","secondary":"#64d8ff"},"colorBindings":{"motes":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["motes"]},
+    {"id":"toxic-cloud","label":"Toxic Cloud","defaultColor":"#75a83d","defaultSmokeColor":"#75a83d","baseRadiusPx":15,"colorControlStreamIds":["cloud"],"defaultColors":{"primary":"#75a83d","secondary":"#c2d865"},"defaultSmokeColors":{"primary":"#75a83d","secondary":"#c2d865"},"colorBindings":{"cloud":"transition"},"flameStreamIds":[],"smokeStreamIds":[],"emberStreamIds":[],"windBlownStreamIds":["cloud"],"windNudgeFadeOutSeconds":0.8}
   ]
 }

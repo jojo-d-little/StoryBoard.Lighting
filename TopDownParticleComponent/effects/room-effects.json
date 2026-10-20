@@ -470,7 +470,7 @@
         "drops": "primary",
         "splash": "secondary"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "drops"
       ],
       "windStretchStreamIds": [
@@ -495,10 +495,10 @@
       "colorBindings": {
         "flakes": "transition"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "flakes"
       ],
-      "temporalColorStreamIds": [
+      "colorTransitionControlStreamIds": [
         "flakes"
       ],
       "defaultColorTransitionFraction": 1,
@@ -522,7 +522,7 @@
         "stones": "primary",
         "impact": "secondary"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "stones"
       ],
       "defaultEmissionRatePerSecond": 24,
@@ -544,10 +544,10 @@
       "colorBindings": {
         "ash": "transition"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "ash"
       ],
-      "temporalColorStreamIds": [
+      "colorTransitionControlStreamIds": [
         "ash"
       ],
       "defaultColorTransitionFraction": 0.8,
@@ -571,10 +571,10 @@
         "cinders": "transition",
         "cool-fragment": "secondary"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "cinders"
       ],
-      "temporalColorStreamIds": [
+      "colorTransitionControlStreamIds": [
         "cinders"
       ],
       "defaultColorTransitionFraction": 0.7,
@@ -597,10 +597,10 @@
       "colorBindings": {
         "motes": "transition"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "motes"
       ],
-      "temporalColorStreamIds": [
+      "colorTransitionControlStreamIds": [
         "motes"
       ],
       "defaultColorTransitionFraction": 0.85,
@@ -623,10 +623,10 @@
       "colorBindings": {
         "motes": "transition"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "motes"
       ],
-      "temporalColorStreamIds": [
+      "colorTransitionControlStreamIds": [
         "motes"
       ],
       "defaultColorTransitionFraction": 0.85,
@@ -649,10 +649,10 @@
       "colorBindings": {
         "leaves": "flip"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "leaves"
       ],
-      "edgeFlowStreamIds": [
+      "windEdgeFlowStreamIds": [
         "leaves"
       ],
       "windMotionMix": {
@@ -681,10 +681,10 @@
       "colorBindings": {
         "leaves": "flip"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "leaves"
       ],
-      "edgeFlowStreamIds": [
+      "windEdgeFlowStreamIds": [
         "leaves"
       ],
       "windMotionMix": {
@@ -713,10 +713,10 @@
       "colorBindings": {
         "leaves": "flip"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "leaves"
       ],
-      "edgeFlowStreamIds": [
+      "windEdgeFlowStreamIds": [
         "leaves"
       ],
       "windMotionMix": {
@@ -747,12 +747,12 @@
         "maple": "flip",
         "oval": "flip"
       },
-      "windStreamIds": [
+      "windBlownStreamIds": [
         "oak",
         "maple",
         "oval"
       ],
-      "edgeFlowStreamIds": [
+      "windEdgeFlowStreamIds": [
         "oak",
         "maple",
         "oval"

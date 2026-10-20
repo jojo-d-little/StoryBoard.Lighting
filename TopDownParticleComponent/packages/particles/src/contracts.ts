@@ -7,6 +7,8 @@ export interface ParticleColors { primary: string; secondary: string; }
 export type ParticleColorPalette = readonly string[];
 /** Named bindings preserve common behavior; a number selects that exact ordered palette entry. */
 export type ParticleColorBinding = "primary" | "secondary" | "transition" | "flip" | number;
+/** Whether a palette update affects only new particles or also living particles. */
+export type ParticleColorChangeMode = "birth-snapshot" | "retint";
 
 /** Surface-mark silhouette recipe. Direction rotates directional stain art. */
 export type TopDownStainStyle = "splatter" | "patch" | "streak" | "directional-spray";
@@ -31,6 +33,8 @@ export type TopDownStainTextures = Record<"splatter" | "patch" | "streak", TopDo
 /** A stationary translucent mark attached to a room-space surface position. */
 export interface TopDownStainInput {
   id: string;
+  /** Shared render order within the selected lighting pass; defaults to 0. */
+  order?: number;
   style: TopDownStainStyle;
   xPx: number;
   yPx: number;
@@ -122,6 +126,8 @@ export interface ParticleStreamDefinition {
 
 export interface ParticleEffectDefinition {
   id: string;
+  /** Null/omitted keeps natural particle decay; zero clears immediately; positive values fade surviving particles. */
+  removalDurationMs?: number | null;
   streams: ParticleStreamDefinition[];
 }
 
@@ -129,7 +135,7 @@ export interface ParticleEffectDefinition {
 export interface ParticleStyleDefinition extends ParticleEffectDefinition {
   defaultColor: string;
   baseRadiusPx: number;
-  colorStreamIds: string[];
+  colorControlStreamIds: string[];
   defaultSmokeColor: string;
   flameStreamIds: string[];
   smokeStreamIds: string[];
@@ -142,11 +148,11 @@ export interface ParticleStyleDefinition extends ParticleEffectDefinition {
   tipColorLabel?: string;
   colorBindings?: Record<string, ParticleColorBinding>;
   /** Streams whose existing particles respond to temporary wind stimuli. */
-  windStreamIds?: string[];
+  windBlownStreamIds?: string[];
   /** Return fade after a wind nudge's full-strength duration; defaults to 0.35 seconds. */
   windNudgeFadeOutSeconds?: number;
   /** Streams affected by the producer lifetime control; defaults to every stream. */
-  lifetimeStreamIds?: string[];
+  lifetimeControlStreamIds?: string[];
   colorLabels?: { primary: string; secondary: string };
   smokeColorLabels?: { primary: string; secondary: string };
 }
@@ -160,11 +166,11 @@ export interface ParticleRoomStyleDefinition extends ParticleEffectDefinition {
   defaultLifetimeSeconds?: number;
   colorLabels?: { primary: string; secondary: string };
   /** Streams whose planar motion responds to room wind. */
-  windStreamIds?: string[];
+  windBlownStreamIds?: string[];
   /** Return fade after a wind nudge's full-strength duration; defaults to 0.35 seconds. */
   windNudgeFadeOutSeconds?: number;
   /** Room streams that enter from the windward edge and leave at the room edge. */
-  edgeFlowStreamIds?: string[];
+  windEdgeFlowStreamIds?: string[];
   /** Internal mix between airborne leaves and near-floor skitters as wind changes. */
   windMotionMix?: {
     streamIds: string[];
@@ -175,7 +181,7 @@ export interface ParticleRoomStyleDefinition extends ParticleEffectDefinition {
   /** Streams whose sprite length and angle respond to room wind. */
   windStretchStreamIds?: string[];
   /** If empty, the producer color-timing control has no effect. */
-  temporalColorStreamIds?: string[];
+  colorTransitionControlStreamIds?: string[];
   defaultColorTransitionFraction?: number;
   defaultColorTransitionSeconds?: number;
 }
@@ -226,7 +232,11 @@ export interface ParticleEmitterInput {
   xPx: number;
   yPx: number;
   active?: boolean;
+  /** Instance render order; equal values are resolved by stable emitter ID. */
+  order?: number;
   surge?: ParticleSurgeInput;
+  /** Defaults to birth-snapshot so existing particles keep their original palette. */
+  colorChangeMode?: ParticleColorChangeMode;
   streamOverrides?: Record<string, ParticleStreamOverrides>;
 }
 
@@ -237,6 +247,8 @@ export interface ParticleStyledEmitterInput {
   xPx: number;
   yPx: number;
   active?: boolean;
+  /** Instance render order; equal values are resolved by stable emitter ID. */
+  order?: number;
   /** Select a named part of the style so flame and smoke can use independent emitters. */
   streamGroup?: "all" | "flame" | "smoke";
   /** Optional layer override for every selected stream. */
@@ -248,6 +260,8 @@ export interface ParticleStyledEmitterInput {
   colors?: ParticleColorPalette;
   colorTransitionFraction?: number;
   colorTransitionSeconds?: number;
+  /** Retint living particles at their current color-over-life progress when the palette changes. */
+  colorChangeMode?: ParticleColorChangeMode;
   sizeScale?: number;
   sizePx?: number;
   radiusPx?: number;
@@ -275,6 +289,8 @@ export interface ParticleRoomEmitterInput {
   id: string;
   style: string;
   active?: boolean;
+  /** Instance render order; equal values are resolved by stable emitter ID. */
+  order?: number;
   surge?: ParticleSurgeInput;
   emissionRatePerSecond?: number;
   sizePx?: number;
@@ -285,6 +301,8 @@ export interface ParticleRoomEmitterInput {
   densityScale?: number;
   sizeScale?: number;
   colors?: ParticleColorPalette;
+  /** Retint living particles at their current color-over-life progress when the palette changes. */
+  colorChangeMode?: ParticleColorChangeMode;
   /** Optional per-stream ordered palettes; useful when a style combines distinct particle shapes. */
   streamColors?: Record<string, ParticleColorPalette>;
   colorTransitionFraction?: number;
