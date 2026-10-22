@@ -179,6 +179,125 @@ The package root exports the caller-facing API and recipe types. Direct access
 to `TopDownParticleSystem` and `TopDownAtmosphereSystem` is available from the
 explicit `@jojo-d-little/storyboard-particles/advanced` entry point.
 
+## Stage 08 catalog boundary
+
+`TopDownEffects.registerCatalogEffect()` accepts the Portal-facing catalog
+entry (`effectKey`, route-specific recipe, and logical `imageSlots`). The
+adapter resolves each stream's logical texture slot through `imageSlots`,
+then registers the point or room recipe with the package renderer. It derives
+point roles and room classifications from stream `role`,
+`isWindBlown`, `isWindStretched`, `windEdgeFlow`,
+`windMotionMixEnabled`, `lifetimeTuningApplicable`, and
+`colorBinding` fields. Runtime maps and sets remain normalized internal data.
+Overlay and stain catalog recipes route to their specialized renderers.
+
+Pass the GameEngine-resolved sparse values in the same `upsert()` call. The
+Lighting adapter does not read the authoring sidecar and does not fill in
+omitted controls from a second control contract. An omitted control keeps its
+complete authored recipe value. For zero-valued controls, GameEngine's v3
+`zeroBehavior` resolution determines whether zero arrives or is omitted;
+Lighting rejects zero for the two `omit` controls if it reaches this boundary.
+Repeatedly upserting the same active instance ID applies size, eligible
+lifetime, and wind changes to its living particles; emission-rate and spawn
+extent changes govern subsequent particles. Existing particle positions are
+not re-sampled when spawn extents change. Color updates follow the recipe's
+`presentation.colorChangeMode` (`retint` or `birth-snapshot`).
+For game-tick tuning, register each recipe once, then pass the resolver's current
+sparse values to `upsert({ kind: "catalog", input: ... })` using the same stable
+instance ID each tick, followed by `effects.update(gameTimeSeconds)`. Omit a
+control to return its component input to the authored recipe value; living
+particles follow the per-control behavior above.
+
+| Resolved control | Lighting mapping |
+| --- | --- |
+| `EmissionRateMultiplier` | Multiply every authored stream rate uniformly, including zero for rate suppression. |
+| `LifetimeMultiplier` | Multiply both life endpoints on eligible streams; preserve follow-ups marked `lifetimeTuningApplicable: false`. |
+| `SizeMultiplier` | Multiply start and optional end dimensions by one factor, preserving size-over-life. |
+| `SpawnRadiusMultiplier` | Scale point radii and rectangular extents around their authored centers; zero collapses the region. |
+| `CoverageMultiplier` | Scale overlay coverage; zero is represented as disabled coverage with no invalid zero-sized tiling texture. |
+| `OpacityMultiplier` | Scale overlay or stain opacity and clamp to `0..1`. |
+| `WindSpeedMultiplier` | Scale the resolved environmental wind vector for wind-responsive streams or overlays. |
+| `WindDirectionOffsetDegrees` | Add a relative angle to a valid resolved direction; calm remains calm. |
+| `WindSpeedPxPerSecond`, `WindDirectionDegrees` | Pass resolved environmental wind through; zero speed is calm, zero degrees points right, and direction `-1` is calm. |
+| `Colors` | Apply the ordered pair using each stream's `colorBinding`, or both authored stain color roles. |
+| `Tint` | Replace overlay tint. |
+| `DirectionDegrees` | Set stain travel or orientation direction. |
+
+Recipe stream values map directly to the particle stream contract. Catalog
+effect keys are runtime IDs; `family` selects the authoring contract only and
+is not interpreted by the particle renderer. `lifecycle.transitionTimeMs`
+remains metadata for the host's displayed-value interpolation. The catalog
+preview harness can interpolate manual edits for inspection; production hosts
+send their currently displayed values and keep interpolation ownership.
+
+The harness fixtures `effects/presentation-effects.catalog.json` and
+`effects/particle-effect-authoring.contract.json` are snapshots from
+`StoryBoard.GameEngine` commit `571c45b`. The runtime package neither imports
+nor loads the authoring-contract fixture.
+
+Use the catalog-shaped path for integration-facing recipes:
+
+```ts
+const rain = catalog.effects.find(effect => effect.effectKey === "particle.rain")!;
+effects.registerCatalogEffect(rain);
+effects.upsert({
+  kind: "catalog",
+  input: {
+    id: "outdoor-rain",
+    effectKey: rain.effectKey,
+    tuning: {
+      EmissionRateMultiplier: 0.7,
+      LifetimeMultiplier: 1.2,
+      WindSpeedPxPerSecond: 18,
+      WindDirectionDegrees: 30
+    }
+  }
+});
+```
+
+Legacy `registerPointStyle()` and `registerRoomEffect()` remain for existing
+workspace consumers while the catalog path is adopted. The harness's original
+scene and `programmatic-consumer` smoke scripts deliberately keep these APIs as
+backward-compatibility coverage; the Catalog alignment tab and catalog adapter
+tests exercise the Stage 08 integration path. No production consumer in this
+workspace is tied to the legacy methods.
+
+### Stage 08.5 implementation checkpoint — 2026-10-20
+
+- Added a typed catalog recipe boundary and one-time adapter for logical image
+  slots, stream classifications, and normalized runtime style metadata.
+- Added sparse per-instance tuning and a shared mapping/inspection path for all
+  13 controls declared by the 21-family tuning-contract fixture. Runtime code
+  does not load that authoring fixture.
+- Added the Catalog alignment harness tab with raw recipe editing, family-based
+  controls, effective-value inspection, and immediate or timed manual previews.
+- Confirmed the old named style APIs remain exercised intentionally by the
+  legacy harness scene and package consumer smoke scripts.
+- Catalog overlay requests now apply the host's displayed values immediately;
+  recipe timing is retained for removal fades, without a second production
+  interpolation owner.
+- Active catalog previews update as tuning controls change. Repeated same-ID
+  upserts reconcile size, eligible lifetime, and wind on living particles;
+  emission rate and spawn extent affect subsequent spawns.
+- Validation: `npm run typecheck`, `npm test -- --run` (73 passed),
+  `npm run build:package`, `npm run consumer:smoke`,
+  `npm run consumer:packed-smoke`, and the harness module `node --check` all
+  passed on 2026-10-20.
+- Headless Chrome verified the Catalog alignment point preview: controls load,
+  sparse size tuning applies, subsequent edits update live, the manual timed
+  transition reaches its target, and a raw recipe edit registers. Headless Edge
+  verified the rain room preview: its eight supported controls load, zero
+  emission updates the active preview immediately, and `LifetimeMultiplier`
+  doubles the room drops while leaving the ineligible point splash unchanged.
+- Catalog adapter tests compare derived smoke, wind-blown, wind-stretched,
+  wind-edge-flow, and wind-motion-mix stream IDs against authored stream fields
+  for every point/room recipe. They also assert campfire-smoke classification,
+  rain velocity/stretch overrides for `drops`, and oak-leaf edge-flow/motion-mix
+  classification.
+- Headless Edge verified `particle.campfire.smoke` produces live particles in
+  the Catalog alignment preview and `particle.rain` accepts its wind controls
+  with the wind-classified `drops` stream active. The full suite passes 73 tests.
+
 The root API includes these contracts:
 
 - **Effect requests:** `TopDownEffectInput` discriminates point, room, and

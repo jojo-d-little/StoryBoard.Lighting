@@ -6,11 +6,14 @@ import { loadDefaultParticleAssets } from "./default-assets.js";
 import { loadDefaultStainTextures } from "./default-assets.js";
 import { TopDownStainSystem } from "./TopDownStainSystem.js";
 import { RenderOrderCoordinator } from "./RenderOrderCoordinator.js";
+import { adaptCatalogParticleEffect, mapCatalogStreamOverrides, resolveCatalogRecipe, resolveWindVector } from "./catalog-adapter.js";
+import type { CatalogOverlayRecipe, CatalogParticleEffect, CatalogResolvedTuning, CatalogRecipe } from "./catalog-adapter.js";
 import type { DefaultParticleAssetOverrides } from "./default-assets.js";
 import type {
   ParticleBurstInput,
   ParticleColorChangeMode,
   ParticleEffectDefinition,
+  ParticleEmitterInput,
   ParticleOccluderInput,
   ParticleRoomGeometry,
   ParticleRoomStyleDefinition,
@@ -119,7 +122,20 @@ export interface TopDownEffectsCreateOptions extends Omit<TopDownEffectsOptions,
 export type TopDownEffectInput =
   | { kind: "point"; input: ParticleStyledEmitterInput }
   | { kind: "room"; input: RoomEffectInput }
-  | { kind: "stain"; input: Omit<TopDownStainInput, "lifetimeSeconds" | "fadeOutSeconds"> };
+  | { kind: "stain"; input: Omit<TopDownStainInput, "lifetimeSeconds" | "fadeOutSeconds"> }
+  | { kind: "catalog"; input: CatalogEffectInstanceInput };
+
+/** Stable-ID request carrying the catalog recipe key and GameEngine-resolved sparse controls. */
+export interface CatalogEffectInstanceInput {
+  id: string;
+  effectKey: string;
+  xPx?: number;
+  yPx?: number;
+  enabled?: boolean;
+  order?: number;
+  tuning?: CatalogResolvedTuning;
+  surge?: ParticleSurgeInput;
+}
 
 /**
  * Caller-facing effect controller. Register recipes once, then configure
@@ -133,6 +149,8 @@ export class TopDownEffects {
   private readonly stainSystem?: TopDownStainSystem;
 
   private readonly registeredRoomEffects = new Set<string>();
+  private readonly catalogEffects = new Map<string, { source: CatalogParticleEffect; recipe: CatalogRecipe }>();
+  private readonly catalogOverlayRemovalDurations = new Map<string, number>();
   private disposed = false;
   private readonly orderCoordinator: RenderOrderCoordinator;
 
@@ -206,6 +224,22 @@ export class TopDownEffects {
     this.particleSystem.registerEffect(recipe);
   }
 
+  /** Register a Stage 08 catalog effect, resolving logical image slots at this boundary. */
+  registerCatalogEffect(source: CatalogParticleEffect): void {
+    this.ensureActive();
+    const id = source.effectKey;
+    const recipe = source.particleEffect.recipe;
+    if (recipe.renderingMode === "point" || recipe.renderingMode === "room") {
+      const adapted = adaptCatalogParticleEffect(source);
+      if (adapted.recipe.renderingMode === "point") this.particleSystem.registerStyle({ ...adapted.pointStyle!, id });
+      else {
+        this.particleSystem.registerRoomStyle({ ...adapted.roomStyle!, id });
+        this.registeredRoomEffects.add(id);
+      }
+    }
+    this.catalogEffects.set(id, { source, recipe });
+  }
+
   #upsertPoint(input: ParticleStyledEmitterInput): void {
     this.ensureActive();
     this.particleSystem.upsertStyledEmitter(input);
@@ -214,12 +248,99 @@ export class TopDownEffects {
   /** Upsert a persistent point, room, overlay, or stain request by its stable ID. */
   upsert(input: TopDownEffectInput): void {
     this.ensureActive();
+    if (input.kind !== "catalog") this.catalogOverlayRemovalDurations.delete(input.input.id);
     if (input.kind === "point") this.#upsertPoint(input.input);
     else if (input.kind === "room") this.#upsertRoom(input.input);
+    else if (input.kind === "catalog") this.upsertCatalogEffect(input.input);
     else {
       if (!this.stainSystem) throw new Error("Stains require packaged defaults from TopDownEffects.create() or explicit stain textures.");
       this.stainSystem.upsertStain(input.input);
     }
+  }
+
+  /** Applies catalog recipe defaults plus sparse resolved family controls to one instance. */
+  upsertCatalogEffect(input: CatalogEffectInstanceInput): void {
+    this.ensureActive();
+    this.catalogOverlayRemovalDurations.delete(input.id);
+    const registered = this.catalogEffects.get(input.effectKey);
+    if (!registered) throw new Error(`Unknown catalog effect '${input.effectKey}'. Register it before setting it.`);
+    const authored = registered.recipe;
+    const effective = resolveCatalogRecipe(authored, input.tuning);
+    const presentation = effective.presentation ?? {};
+    const order = input.order ?? presentation.order ?? 0;
+    const colorChangeMode = presentation.colorChangeMode ?? "birth-snapshot";
+    if (effective.renderingMode === "point" || effective.renderingMode === "room") {
+      const overrides = mapCatalogStreamOverrides(authored, effective, input.tuning ?? {});
+      if (effective.renderingMode === "point") {
+        if (input.xPx === undefined || input.yPx === undefined) throw new TypeError("Catalog point effects require xPx and yPx.");
+        const emitter: ParticleEmitterInput = {
+          id: input.id,
+          effectId: input.effectKey,
+          xPx: input.xPx,
+          yPx: input.yPx,
+          active: input.enabled,
+          order,
+          colorChangeMode,
+          surge: input.surge,
+          streamOverrides: overrides
+        };
+        this.particleSystem.upsertEmitter(emitter);
+        return;
+      }
+      if (!this.registeredRoomEffects.has(input.effectKey)) throw new Error(`Catalog room recipe '${input.effectKey}' was not registered.`);
+      const wind = resolveWindVector(authored, input.tuning);
+      this.particleSystem.upsertRoomEmitter({
+        id: input.id,
+        style: input.effectKey,
+        active: input.enabled,
+        order,
+        colorChangeMode,
+        surge: input.surge,
+        windXPxPerSecond: wind.x,
+        windYPxPerSecond: wind.y,
+        streamOverrides: overrides
+      });
+      return;
+    }
+
+    if (effective.renderingMode === "overlay") {
+      const overlayRecipe = effective as CatalogOverlayRecipe;
+      const authoredOverlay = authored as CatalogOverlayRecipe;
+      const coverageIsZero = overlayRecipe.coveragePx === 0;
+      const wind = resolveWindVector(overlayRecipe, input.tuning);
+      this.requireAtmosphere().setField(input.id, overlayRecipe.overlay, order, {
+        enabled: (input.enabled ?? true) && !coverageIsZero,
+        opacity: coverageIsZero ? 0 : overlayRecipe.opacity,
+        scalePx: coverageIsZero ? authoredOverlay.coveragePx : overlayRecipe.coveragePx,
+        tint: overlayRecipe.tint,
+        windDirectionDegrees: Math.atan2(wind.y, wind.x) * 180 / Math.PI,
+        windSpeedPxPerSecond: Math.hypot(wind.x, wind.y),
+        // The host supplies values already interpolated under Q21. Keep this
+        // request immediate, while retaining recipe timing only for removal.
+        transitionTimeMs: 0,
+        removalDurationMs: overlayRecipe.lifecycle?.removalDurationMs ?? undefined
+      });
+      const removalDuration = overlayRecipe.lifecycle?.removalDurationMs ?? overlayRecipe.lifecycle?.transitionTimeMs ?? 0;
+      this.catalogOverlayRemovalDurations.set(input.id, removalDuration);
+      return;
+    }
+
+    if (input.xPx === undefined || input.yPx === undefined) throw new TypeError("Catalog stain effects require xPx and yPx.");
+    if (!this.stainSystem) throw new Error("Stains require packaged defaults from TopDownEffects.create() or explicit stain textures.");
+    this.stainSystem.upsertStain({
+      id: input.id,
+      style: effective.style,
+      xPx: input.xPx,
+      yPx: input.yPx,
+      sizePx: effective.sizePx,
+      opacity: effective.opacity,
+      amount: effective.amount,
+      colors: [effective.colors.primary, effective.colors.secondary],
+      directionDegrees: effective.directionDegrees,
+      layer: presentation.layer,
+      order,
+      active: input.enabled
+    });
   }
 
   sendStimulus(input: ParticleStimulusInput): void {
@@ -312,7 +433,8 @@ export class TopDownEffects {
   remove(id: string): void {
     this.ensureActive();
     this.particleSystem.removeEmitter(id);
-    this.atmosphereSystem?.removeField(id);
+    this.atmosphereSystem?.removeField(id, this.catalogOverlayRemovalDurations.get(id));
+    this.catalogOverlayRemovalDurations.delete(id);
     this.stainSystem?.removeStain(id);
   }
 
@@ -329,6 +451,7 @@ export class TopDownEffects {
     this.atmosphereSystem?.clear();
     this.stainSystem?.clear();
     this.stainSystem?.resetClock();
+    this.catalogOverlayRemovalDurations.clear();
   }
 
   dispose(): void {

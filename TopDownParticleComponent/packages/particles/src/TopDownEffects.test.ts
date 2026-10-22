@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ParticleContainer, Texture, TilingSprite } from "pixi.js";
 import { TopDownEffects } from "./TopDownEffects.js";
 import type { RegisteredRoomEffectName, RoomEffectInput } from "./TopDownEffects.js";
 import type { ParticleStyledEmitterInput } from "./contracts.js";
+import type { CatalogParticleEffect } from "./catalog-adapter.js";
 
 const geometry = { widthPx: 640, heightPx: 400, cellSizePx: 40 };
 
@@ -40,6 +42,46 @@ function registerRain(effects: TopDownEffects): RegisteredRoomEffectName {
 }
 
 describe("TopDownEffects public facade", () => {
+  it("registers and routes catalog point, room, overlay, and stain recipes through the shared API", () => {
+    const catalog = JSON.parse(readFileSync(new URL("../../../effects/presentation-effects.catalog.json", import.meta.url), "utf8").replace(/^\uFEFF/, "")) as { effects: CatalogParticleEffect[] };
+    const entries = catalog.effects.filter(effect => effect.category === "ParticleEffect");
+    const textureIds = new Set(entries.flatMap(effect => Object.values(effect.particleEffect.imageSlots ?? {})));
+    const pair = { base: Texture.WHITE, detail: Texture.WHITE };
+    const effects = new TopDownEffects({
+      textures: {
+        particles: Object.fromEntries([...textureIds].map(id => [id, Texture.WHITE])),
+        fog: Texture.WHITE,
+        clouds: Texture.WHITE,
+        stains: { splatter: pair, patch: pair, streak: pair }
+      },
+      seed: 11
+    });
+    try {
+      effects.setRoomGeometry(geometry);
+      for (const entry of entries) effects.registerCatalogEffect(entry);
+      effects.upsert({ kind: "catalog", input: { id: "rain-1", effectKey: "particle.rain", tuning: { EmissionRateMultiplier: 0 } } });
+      effects.upsert({ kind: "catalog", input: { id: "fire-1", effectKey: "particle.campfire", xPx: 90, yPx: 80 } });
+      effects.upsert({ kind: "catalog", input: { id: "fog-1", effectKey: "particle.fog", tuning: { CoverageMultiplier: 0, OpacityMultiplier: 0 } } });
+      effects.upsert({ kind: "catalog", input: { id: "stain-1", effectKey: "particle.stain.splatter", xPx: 160, yPx: 120, tuning: { SizeMultiplier: 2, DirectionDegrees: 25 } } });
+      effects.update(0);
+      effects.update(0.25);
+
+      expect(effects.getStats()).toMatchObject({ activeEmitters: 2, atmosphereFields: 1, stains: 1 });
+      expect(effects.getStats().liveParticles).toBeGreaterThan(0);
+
+      effects.upsert({ kind: "catalog", input: { id: "fog-1", effectKey: "particle.fog", tuning: { OpacityMultiplier: 0.5 } } });
+      effects.update(0.26);
+      const fog = effects.postLight.children.find(child => child.children.some(item => item instanceof TilingSprite));
+      expect(fog?.alpha).toBeCloseTo(0.25);
+      effects.remove("fog-1");
+      expect(effects.getStats().atmosphereFields).toBe(1);
+      effects.update(10.27);
+      expect(effects.getStats().atmosphereFields).toBe(0);
+    } finally {
+      effects.dispose();
+    }
+  });
+
   it("routes a registered room recipe and overlays through one room request API", () => {
     const effects = makeEffects();
     try {

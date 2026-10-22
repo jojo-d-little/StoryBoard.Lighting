@@ -146,13 +146,14 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
     if (source.ratePerSecond !== undefined) result.ratePerSecond = nonnegative(source.ratePerSecond, "ratePerSecond");
     if (source.sizeScale !== undefined) result.sizeScale = positive(source.sizeScale, "sizeScale");
     if (source.radiusScale !== undefined) result.radiusScale = nonnegative(source.radiusScale, "radiusScale");
+    if (source.spawnExtentScale !== undefined) result.spawnExtentScale = nonnegative(source.spawnExtentScale, "spawnExtentScale");
     if (source.innerRadiusPx !== undefined) result.innerRadiusPx = nonnegative(source.innerRadiusPx, "innerRadiusPx");
     if (source.speedScale !== undefined) result.speedScale = positive(source.speedScale, "speedScale");
     if (source.lifeMinSeconds !== undefined) result.lifeMinSeconds = positive(source.lifeMinSeconds, "lifeMinSeconds");
     if (source.lifeMaxSeconds !== undefined) result.lifeMaxSeconds = positive(source.lifeMaxSeconds, "lifeMaxSeconds");
     if (source.lifetimeScale !== undefined) result.lifetimeScale = positive(source.lifetimeScale, "lifetimeScale");
     if (source.lifetimeSeconds !== undefined) result.lifetimeSeconds = positive(source.lifetimeSeconds, "lifetimeSeconds");
-    if (source.colorTransitionSeconds !== undefined) result.colorTransitionSeconds = positive(source.colorTransitionSeconds, "colorTransitionSeconds");
+    if (source.colorTransitionSeconds !== undefined) result.colorTransitionSeconds = nonnegative(source.colorTransitionSeconds, "colorTransitionSeconds");
     if (source.layer !== undefined) {
       if (source.layer !== "pre-light" && source.layer !== "post-light") throw new TypeError("Invalid stream override layer.");
       result.layer = source.layer;
@@ -164,9 +165,7 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
       throw new RangeError("lifeMaxSeconds must be at least lifeMinSeconds.");
     }
     if (source.colorTransitionFraction !== undefined) {
-      const fraction = positive(source.colorTransitionFraction, "colorTransitionFraction");
-      if (fraction < 0.1 || fraction > 1) throw new RangeError("colorTransitionFraction must be in 0.1..1.");
-      result.colorTransitionFraction = fraction;
+      result.colorTransitionFraction = unit(source.colorTransitionFraction, "colorTransitionFraction");
     }
     if (source.velocityOffsetXPxPerSecond !== undefined) {
       result.velocityOffsetXPxPerSecond = finite(source.velocityOffsetXPxPerSecond, "velocityOffsetXPxPerSecond");
@@ -271,6 +270,17 @@ export function normalizeEffect(input: ParticleEffectDefinition): NormalizedEffe
     return {
       id: streamId,
       textureId: identifier(source.textureId, "texture ID"),
+      role: source.role,
+      isWindBlown: source.isWindBlown ?? false,
+      isWindStretched: source.isWindStretched ?? false,
+      windEdgeFlow: source.windEdgeFlow ?? false,
+      windMotionMixEnabled: source.windMotionMixEnabled ?? false,
+      lifetimeTuningApplicable: source.lifetimeTuningApplicable,
+      colorBinding: source.colorBinding,
+      colorTransitionSeconds: source.colorTransitionSeconds === undefined
+        ? undefined : nonnegative(source.colorTransitionSeconds, "colorTransitionSeconds"),
+      colorTransitionFraction: source.colorTransitionFraction === undefined
+        ? undefined : unit(source.colorTransitionFraction, "colorTransitionFraction"),
       onDeathStreamId: source.onDeathStreamId === undefined
         ? undefined : identifier(source.onDeathStreamId, "onDeathStreamId"),
       layer: source.layer,

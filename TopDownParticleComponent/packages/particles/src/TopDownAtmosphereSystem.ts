@@ -136,11 +136,11 @@ export class TopDownAtmosphereSystem {
     else this.sortFields();
   }
 
-  removeField(id: string): boolean {
+  removeField(id: string, fallbackDurationMs?: number): boolean {
     this.ensureActive();
     const field = this.fields.get(id);
     if (!field) return false;
-    const durationMs = field.input.removalDurationMs ?? field.input.transitionTimeMs;
+    const durationMs = field.input.removalDurationMs ?? fallbackDurationMs ?? field.input.transitionTimeMs;
     if (durationMs > 0) {
       const now = this.lastTimeSeconds ?? 0;
       const from = this.fieldAlpha(field, now);

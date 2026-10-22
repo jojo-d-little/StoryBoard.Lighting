@@ -206,6 +206,32 @@ describe("TopDownParticleSystem", () => {
     }
   });
 
+  it("applies live size, lifetime, and wind updates to particles already emitted by an instance", () => {
+    const particles = system();
+    try {
+      particles.upsertEmitter({ id: "live-tuning", effectId: "test", xPx: 20, yPx: 20,
+        streamOverrides: { dots: { ratePerSecond: 60, sizeScale: 1, lifetimeScale: 1 } } });
+      particles.update(0);
+      particles.update(1 / 60);
+      const group = particles.preLight.children.find((child: any) => child.particleChildren?.length) as ParticleContainer;
+      const particle = group.particleChildren[0];
+      const initialScale = particle.scaleX;
+      const initialX = particle.x;
+
+      particles.upsertEmitter({ id: "live-tuning", effectId: "test", xPx: 20, yPx: 20,
+        streamOverrides: { dots: { ratePerSecond: 0, sizeScale: 2, lifetimeScale: 2,
+          velocityOffsetXPxPerSecond: 60 } } });
+      expect(particle.scaleX).toBeCloseTo(initialScale * 2);
+      particles.update(2 / 60);
+      expect(particle.x).toBeCloseTo(initialX + 1);
+
+      for (let frame = 3; frame <= 150; frame++) particles.update(frame / 60);
+      expect(particles.getStats().liveParticles).toBe(1);
+    } finally {
+      particles.dispose();
+    }
+  });
+
   it("spawns smoke inside the configured outer radius and outside its clear radius", () => {
     const particles = system();
     try {

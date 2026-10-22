@@ -18,6 +18,7 @@ input[type=file]{box-sizing:border-box;width:100%;margin-top:4px;color:#cbd5e1;f
 select,textarea{width:100%} textarea{height:130px;resize:vertical;font:11px ui-monospace,monospace}
 button{cursor:pointer;font-size:12px;margin:4px 4px 4px 0} button.active{background:#395778;border-color:#92c2fb}
 .fire-stream-card{border:1px solid #465466;border-radius:6px;margin:10px 0;padding:8px}.fire-stream-card legend{color:#d6e7fb;font-size:13px}
+.catalog-control{border:1px solid #3d4a5b;border-radius:5px;margin:8px 0;padding:7px}.catalog-control label{margin:5px 0}.catalog-control .inline{display:flex;align-items:center;gap:6px}.catalog-control output{color:#b9c7d8}pre.catalog-output{white-space:pre-wrap;overflow:auto;max-height:190px;background:#1d2530;padding:8px;border-radius:5px;font:10px ui-monospace,monospace}
 .row{display:flex;flex-wrap:wrap;gap:2px}.note{font-size:12px;color:#9eabbc}
 .tabs{display:flex;flex-wrap:wrap;gap:5px;margin:12px 0 8px}
 .tab-btn{margin:0;padding:7px 9px;border-color:#526275;background:#222b37}
@@ -57,6 +58,7 @@ button{cursor:pointer;font-size:12px;margin:4px 4px 4px 0} button.active{backgro
     <button id="stainTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabStains" data-tab="tabStains">Surface stains</button>
     <button id="atmosphereTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabAtmosphere" data-tab="tabAtmosphere">Fog &amp; clouds</button>
     <button id="sceneTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabScene" data-tab="tabScene">Lighting &amp; data</button>
+    <button id="catalogTab" class="tab-btn" role="tab" aria-selected="false" aria-controls="tabCatalog" data-tab="tabCatalog">Catalog alignment</button>
   </div>
   <section id="tabRoom" class="tab-panel active" role="tabpanel" aria-labelledby="roomTab">
     <h2>Room effects</h2>
@@ -268,6 +270,19 @@ button{cursor:pointer;font-size:12px;margin:4px 4px 4px 0} button.active{backgro
     <div class="row"><button id="exportData">Export JSON</button><button id="applyData">Apply JSON</button></div>
     <textarea id="sceneData" aria-label="Producer scene JSON"></textarea>
   </section>
+  <section id="tabCatalog" class="tab-panel" role="tabpanel" aria-labelledby="catalogTab">
+    <h2>Stage 08 catalog recipe</h2>
+    <p>This preview loads the checked-in runtime catalog fixture and the authoring tuning contract fixture. It shows raw authored values separately from sparse resolved controls; only controls declared for the selected family are offered. Click Apply once to create the preview; later control edits update it live.</p>
+    <label>Catalog effect<select id="catalogEffect"></select></label>
+    <div class="row"><label>Room X<input id="catalogX" type="number" value="320"></label><label>Room Y<input id="catalogY" type="number" value="200"></label></div>
+    <label>Manual transition: <output id="catalogTransitionValue">0</output> ms</label><input id="catalogTransition" type="range" min="0" max="10000" step="100" value="0">
+    <div id="catalogControls"></div>
+    <div class="row"><button id="catalogApply" type="button">Apply sparse tuning preview</button><button id="catalogRemove" type="button">Remove preview</button></div>
+    <h3>Raw recipe (editable)</h3><textarea id="catalogRawRecipe" aria-label="Raw catalog recipe JSON"></textarea>
+    <button id="catalogRegisterRaw" type="button">Register edited raw recipe</button>
+    <h3>Effective mapped values</h3><pre id="catalogEffective" class="catalog-output"></pre>
+    <p id="catalogStatus" class="note">Select a recipe to inspect its stream structure and family controls.</p>
+  </section>
   <div id="status">Loading packages and textures…</div>
 </aside>
 <main id="stageHost"></main>
@@ -275,6 +290,7 @@ button{cursor:pointer;font-size:12px;margin:4px 4px 4px 0} button.active{backgro
 import * as PIXI from 'pixi.js';
 import { TopDownLightingPipeline } from '../TopDown/packages/lighting/dist/index.js';
 import { TopDownEffects } from './packages/particles/dist/index.js';
+import { getSupportedCatalogControls, mapCatalogControlValues } from './packages/particles/dist/index.js';
 
 const WIDTH = 640, HEIGHT = 400, CELL = 40;
 const FALLING_ROOM_STYLES = new Set(['rain','snowfall','hail','ashfall','cinderfall']);
@@ -291,6 +307,10 @@ async function loadJson(path) {
 }
 const styleLibrary = await loadJson('./effects/starter-effects.json');
 const roomLibrary = await loadJson('./effects/room-effects.json');
+const catalogDocument = await loadJson('./effects/presentation-effects.catalog.json');
+const tuningContractFixture = await loadJson('./effects/particle-effect-authoring.contract.json');
+const catalogEffects = catalogDocument.effects.filter(effect => effect.category === 'ParticleEffect');
+const catalogByKey = new Map(catalogEffects.map(effect => [effect.effectKey, effect]));
 let scene = await loadJson('./effects/starter-scene.json');
 const STARTER_ACCENTS = JSON.parse(JSON.stringify(scene.accents ?? []));
 const STARTER_STAINS = JSON.parse(JSON.stringify(scene.stains ?? []));
@@ -327,6 +347,7 @@ for (const style of roomLibrary.styles) {
   if (!effect) throw new Error(`Missing room effect recipe '${style.id}'.`);
   registeredRoomEffects.set(style.id, effects.registerRoomEffect({ ...effect, ...style }));
 }
+for (const effect of catalogEffects) effects.registerCatalogEffect(effect);
 
 const roomSurface = PIXI.RenderTexture.create({ width: WIDTH, height: HEIGHT, resolution: 1 });
 const lighting = new TopDownLightingPipeline({ renderer: app.renderer, maxLights: 1, maxBlockers: 1 });
@@ -661,6 +682,149 @@ syncCrate();
 fitRoom();
 new ResizeObserver(fitRoom).observe(host);
 
+let catalogPreviewVisible = false;
+let catalogTargetTuning = {};
+let catalogDisplayedTuning = {};
+let catalogTransition = null;
+const catalogPreviewId = 'catalog-alignment-preview';
+const catalogTransitionControlMap = new Map();
+function catalogEntry(){return catalogByKey.get($('catalogEffect').value);}
+function catalogColorDefaults(recipe){
+ if(recipe.colors)return recipe.colors;
+ const stream=(recipe.streams??[]).find(candidate=>candidate.colorBinding?.control==='Colors');
+ return {primary:stream?.startColor??'#ffffff',secondary:stream?.endColor??stream?.startColor??'#ffffff'};
+}
+function catalogBaseValue(recipe,name){
+ if(name==='Colors')return catalogColorDefaults(recipe);
+ if(name==='Tint')return recipe.tint??'#ffffff';
+ if(name==='DirectionDegrees')return recipe.directionDegrees??0;
+ if(name==='WindSpeedPxPerSecond')return recipe.windSpeedPxPerSecond??0;
+ if(name==='WindDirectionDegrees')return recipe.windDirectionDegrees??-1;
+ if(name==='WindSpeedMultiplier')return recipe.windSpeedMultiplier??1;
+ if(name==='WindDirectionOffsetDegrees')return recipe.windDirectionOffsetDegrees??0;
+ if(name.endsWith('Multiplier'))return 1;
+ return 0;
+}
+function syncCatalogRaw(){
+ const entry=catalogEntry();if(!entry)return;
+ $('catalogRawRecipe').value=JSON.stringify(entry.particleEffect.recipe,null,2);
+ renderCatalogControls();
+ renderCatalogEffective(catalogDisplayedTuning);
+}
+function renderCatalogControls(){
+ const entry=catalogEntry(),hostControls=$('catalogControls');hostControls.replaceChildren();catalogTransitionControlMap.clear();
+ if(!entry)return;
+ let controls=[];
+ try{controls=getSupportedCatalogControls(entry.particleEffect.recipe,tuningContractFixture);}catch(error){$('catalogStatus').textContent=error.message;return;}
+ for(const control of controls){
+  const box=document.createElement('div');box.className='catalog-control';
+  const use=document.createElement('input');use.type='checkbox';use.dataset.controlUse=control.name;
+  const title=document.createElement('label');title.className='inline';title.append(use,document.createTextNode(' '+(control.label??control.name)));
+  const fields={};
+  if(control.kind==='colorPair'){
+   const defaults=catalogBaseValue(entry.particleEffect.recipe,control.name);
+   for(const role of ['primary','secondary']){
+    const label=document.createElement('label');label.textContent=control.roleLabels?.[role]??role;
+    const input=document.createElement('input');input.type='color';input.value=defaults[role];input.dataset.controlValue=control.name;input.dataset.controlRole=role;label.append(input);box.append(label);fields[role]=input;
+   }
+  }else{
+   const input=document.createElement(control.options?.length?'select':'input');
+   if(input instanceof HTMLInputElement){
+    input.type=control.kind==='number'?'number':control.name==='Tint'?'color':'text';
+    if(control.minimum!==undefined)input.min=String(control.minimum);
+    if(control.maximum!==undefined)input.max=String(control.maximum);
+    input.step=control.unit==='multiplier'?'0.01':'1';
+    input.value=String(catalogBaseValue(entry.particleEffect.recipe,control.name));
+   }else for(const option of control.options??[])input.add(new Option(option,option));
+   input.dataset.controlValue=control.name;
+   const label=document.createElement('label');label.textContent=control.unit??'Resolved value';label.append(input);box.append(label);fields.value=input;
+  }
+  if(control.description){const note=document.createElement('p');note.className='note';note.textContent=control.description;box.append(note);}
+  box.prepend(title);hostControls.append(box);catalogTransitionControlMap.set(control.name,{control,use,fields});
+ }
+ $('catalogStatus').textContent=entry.effectKey+' · family '+entry.particleEffect.recipe.family+' · '+controls.length+' supported controls.';
+}
+function readCatalogTuning(){
+ const tuning={};
+ for(const [name,{control,use,fields}] of catalogTransitionControlMap){
+  if(!use.checked)continue;
+  let value;
+  if(control.kind==='colorPair')value={primary:fields.primary.value,secondary:fields.secondary.value};
+  else if(control.kind==='number'){
+   const number=fields.value.valueAsNumber;
+   if(!Number.isFinite(number)||number<control.minimum||number>control.maximum)throw new RangeError(name+' must be within '+control.minimum+'..'+control.maximum+'.');
+   if(number===0&&control.zeroBehavior==='omit')continue;
+   value=number;
+  }else value=fields.value.value;
+  tuning[name]=value;
+ }
+ return tuning;
+}
+function mixCatalogColor(a,b,t){
+ const ca=Number.parseInt(a.slice(1),16),cb=Number.parseInt(b.slice(1),16);
+ return '#'+[16,8,0].map(shift=>Math.round(((ca>>shift)&255)+(((cb>>shift)&255)-((ca>>shift)&255))*t).toString(16).padStart(2,'0')).join('');
+}
+function interpolateCatalogTuning(from,to,progress,recipe){
+ const result={};
+ for(const name of catalogTransitionControlMap.keys()){
+  const hasFrom=Object.hasOwn(from,name),hasTo=Object.hasOwn(to,name);
+  const a=hasFrom?from[name]:catalogBaseValue(recipe,name),b=hasTo?to[name]:catalogBaseValue(recipe,name);
+  let value;
+  if(typeof a==='number'&&typeof b==='number')value=a+(b-a)*progress;
+  else if(name==='Colors'&&a&&b)value={primary:mixCatalogColor(a.primary,b.primary,progress),secondary:mixCatalogColor(a.secondary,b.secondary,progress)};
+  else value=progress<1?a:b;
+  if(progress<1?(hasFrom||hasTo):hasTo)result[name]=value;
+ }
+ return result;
+}
+function renderCatalogEffective(tuning){
+ const entry=catalogEntry();if(!entry)return;
+ try{$('catalogEffective').textContent=JSON.stringify(mapCatalogControlValues(entry.particleEffect.recipe,tuning),null,2);}
+ catch(error){$('catalogEffective').textContent=error.message;}
+}
+function updateCatalogPreview(timeSeconds){
+ if(!catalogPreviewVisible)return;
+ const entry=catalogEntry();if(!entry)return;
+ if(catalogTransition){
+  const duration=(+$('catalogTransition').value)/1000;
+  const progress=duration===0?1:Math.min(1,(timeSeconds-catalogTransition.startedAt)/duration);
+  catalogDisplayedTuning=interpolateCatalogTuning(catalogTransition.from,catalogTransition.to,progress,entry.particleEffect.recipe);
+  if(progress>=1)catalogTransition=null;
+ }
+ try{
+  effects.upsert({kind:'catalog',input:{id:catalogPreviewId,effectKey:entry.effectKey,xPx:+$('catalogX').value,yPx:+$('catalogY').value,tuning:catalogDisplayedTuning}});
+  renderCatalogEffective(catalogDisplayedTuning);
+ }catch(error){$('catalogStatus').textContent=error.message;}
+}
+function applyCatalogTuning(next){
+ catalogTargetTuning=next;
+ if(!catalogPreviewVisible){renderCatalogEffective(next);return;}
+ const durationMs=+$('catalogTransition').value;
+ if(durationMs===0){catalogDisplayedTuning=next;catalogTransition=null;}
+ else catalogTransition={from:catalogDisplayedTuning,to:next,startedAt:gameTime};
+ updateCatalogPreview(gameTime);
+}
+for(const entry of catalogEffects)$('catalogEffect').add(new Option(entry.displayName+' · '+entry.effectKey,entry.effectKey));
+$('catalogEffect').addEventListener('change',()=>{if(catalogPreviewVisible)effects.remove(catalogPreviewId);catalogPreviewVisible=false;catalogTargetTuning={};catalogDisplayedTuning={};catalogTransition=null;syncCatalogRaw();});
+$('catalogTransition').addEventListener('input',()=>{$('catalogTransitionValue').textContent=$('catalogTransition').value;});
+$('catalogControls').addEventListener('input',()=>{try{applyCatalogTuning(readCatalogTuning());}catch(error){$('catalogStatus').textContent=error.message;}});
+$('catalogApply').addEventListener('click',()=>{
+ try{
+  catalogPreviewVisible=true;
+  applyCatalogTuning(readCatalogTuning());
+ }catch(error){$('catalogStatus').textContent=error.message;}
+});
+$('catalogRemove').addEventListener('click',()=>{effects.remove(catalogPreviewId);catalogPreviewVisible=false;catalogTransition=null;$('catalogStatus').textContent='Catalog preview removed.';});
+$('catalogRegisterRaw').addEventListener('click',()=>{
+ try{
+  const entry=catalogEntry(),recipe=JSON.parse($('catalogRawRecipe').value);
+  const updated={...entry,particleEffect:{...entry.particleEffect,recipe}};
+  effects.registerCatalogEffect(updated);catalogByKey.set(updated.effectKey,updated);catalogTargetTuning={};catalogDisplayedTuning={};catalogTransition=null;
+  syncCatalogRaw();$('catalogStatus').textContent='Registered edited raw recipe for '+updated.effectKey+'.';
+ }catch(error){$('catalogStatus').textContent='Recipe registration failed: '+error.message;}
+});
+syncCatalogRaw();
+
 const tabButtons = [...document.querySelectorAll('.tab-btn')];
 function activateTab(tabId) {
   activeTabId = tabId;
@@ -784,6 +948,7 @@ app.ticker.add(ticker => {
   if (!paused) gameTime += Math.min(0.1, ticker.deltaMS / 1000);
   if (pendingStep) { gameTime += 1 / 60; pendingStep = false; }
   if(hasActiveTransitions()){applyEmitters();applyAtmosphere();}
+  updateCatalogPreview(gameTime);
   effects.update(gameTime);
   app.renderer.render({ container: roomContents, target: roomSurface, clear: true });
   lighting.submitFrame({

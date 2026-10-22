@@ -108,6 +108,7 @@ interface LiveParticle {
   onDeathStream?: NormalizedStream;
   onDeathOverride?: ParticleStreamOverrides;
   sizeScale: number;
+  baseRotationRadians: number;
   windStretchScale: number;
   skitter?: {
     phaseRadians: number;
@@ -128,6 +129,8 @@ interface LiveParticle {
   yPx: number;
   velocityXPxPerSecond: number;
   velocityYPxPerSecond: number;
+  windOffsetXPxPerSecond: number;
+  windOffsetYPxPerSecond: number;
   orbitCenterXPx?: number;
   orbitCenterYPx?: number;
   orbitRadiusPx?: number;
@@ -330,7 +333,10 @@ export class TopDownParticleSystem {
     const defaultEmissionRatePerSecond = this.positiveSetting(style.defaultEmissionRatePerSecond ?? Math.max(1, roomStreams.reduce((sum, stream) => sum + stream.ratePerSecond, 0)), "defaultEmissionRatePerSecond");
     const defaultSizePx = this.positiveSetting(style.defaultSizePx ?? sizeStreams.reduce((sum, stream) => sum + stream.startWidthPx, 0) / sizeStreams.length, "defaultSizePx");
     const defaultLifetimeSeconds = this.positiveSetting(style.defaultLifetimeSeconds ?? sizeStreams.reduce((sum, stream) => sum + (stream.lifeMinSeconds + stream.lifeMaxSeconds) / 2, 0) / sizeStreams.length, "defaultLifetimeSeconds");
-    const defaultColorTransitionSeconds = this.positiveSetting(style.defaultColorTransitionSeconds ?? defaultLifetimeSeconds * fraction, "defaultColorTransitionSeconds");
+    const defaultColorTransitionSeconds = style.defaultColorTransitionSeconds ?? defaultLifetimeSeconds * fraction;
+    if (!Number.isFinite(defaultColorTransitionSeconds) || defaultColorTransitionSeconds < 0) {
+      throw new RangeError("defaultColorTransitionSeconds must be nonnegative and finite.");
+    }
     this.registerEffect(style);
     this.roomStyles.set(style.id.trim(), {
       defaultColors: { ...style.defaultColors },
@@ -386,7 +392,7 @@ export class TopDownParticleSystem {
     }
     const fraction = input.colorTransitionFraction ?? style.defaultColorTransitionFraction;
     const transitionSeconds = input.colorTransitionSeconds ?? style.defaultColorTransitionSeconds;
-    this.positiveSetting(transitionSeconds, "colorTransitionSeconds");
+    if (!Number.isFinite(transitionSeconds) || transitionSeconds < 0) throw new RangeError("colorTransitionSeconds must be nonnegative and finite.");
     this.validateColorTransitionFraction(fraction);
     if (input.layer !== undefined && input.layer !== "style-default" && input.layer !== "pre-light" && input.layer !== "post-light") {
       throw new TypeError("Room style layer must be style-default, pre-light, or post-light.");
@@ -424,6 +430,8 @@ export class TopDownParticleSystem {
         override.colorTransitionFraction = input.colorTransitionSeconds === undefined ? fraction : undefined;
         if (input.colorTransitionSeconds !== undefined) override.colorTransitionSeconds = transitionSeconds;
       }
+      if (input.streamOverrides?.[stream.id]) Object.assign(override, input.streamOverrides[stream.id]);
+      if (style.windEdgeFlowStreamIds.has(stream.id) && windStrength === 0) override.ratePerSecond = 0;
       if (input.layer && input.layer !== "style-default") override.layer = input.layer;
       streamOverrides[stream.id] = override;
     }
@@ -647,6 +655,32 @@ export class TopDownParticleSystem {
       alphaFade: nextAlphaFade
     });
     this.refreshParticleOrder();
+    if (previous && previous.input.effectId === normalized.effectId && normalized.active) {
+      for (const particle of this.live) {
+        if (particle.emitterId !== normalized.id) continue;
+        const streamId = particle.stream.id;
+        const previousOverride = previous.input.streamOverrides[streamId];
+        const nextOverride = normalized.streamOverrides[streamId];
+        if (particle.onDeathStream) {
+          particle.onDeathOverride = normalized.streamOverrides[particle.onDeathStream.id];
+        }
+        particle.sizeScale = nextOverride?.sizeScale ?? 1;
+        const previousLifetimeScale = previousOverride?.lifetimeScale ?? 1;
+        const nextLifetimeScale = nextOverride?.lifetimeScale ?? 1;
+        if (previousLifetimeScale !== nextLifetimeScale) {
+          particle.lifeSeconds *= nextLifetimeScale / previousLifetimeScale;
+        }
+        const nextWindOffsetX = nextOverride?.velocityOffsetXPxPerSecond ?? 0;
+        const nextWindOffsetY = nextOverride?.velocityOffsetYPxPerSecond ?? 0;
+        particle.velocityXPxPerSecond += nextWindOffsetX - particle.windOffsetXPxPerSecond;
+        particle.velocityYPxPerSecond += nextWindOffsetY - particle.windOffsetYPxPerSecond;
+        particle.windOffsetXPxPerSecond = nextWindOffsetX;
+        particle.windOffsetYPxPerSecond = nextWindOffsetY;
+        particle.windStretchScale = nextOverride?.windStretchScale ?? 1;
+        particle.visual.rotation = nextOverride?.windStretchRotationRadians ?? particle.baseRotationRadians;
+        this.updateVisual(particle);
+      }
+    }
     if (previous && previous.input.effectId === normalized.effectId && normalized.colorChangeMode === "retint") {
       const streams = new Map(effect.streams.map(stream => [stream.id, stream]));
       for (const particle of this.live) {
@@ -889,8 +923,8 @@ export class TopDownParticleSystem {
   }
 
   private validateColorTransitionFraction(value: number): void {
-    if (!Number.isFinite(value) || value < 0.1 || value > 1) {
-      throw new RangeError("colorTransitionFraction must be in 0.1..1.");
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+      throw new RangeError("colorTransitionFraction must be in 0..1.");
     }
   }
 
@@ -1064,7 +1098,7 @@ export class TopDownParticleSystem {
       ? { ...stream, layer: override.layer } : stream;
     const group = this.groupFor(renderedStream, emitterId);
     const visual = group.free.pop() ?? new Particle({ texture: group.texture, anchorX: 0.5, anchorY: 0.5 });
-    const radiusScale = override?.radiusScale ?? 1;
+    const radiusScale = override?.radiusScale ?? override?.spawnExtentScale ?? 1;
     const speedScale = override?.speedScale ?? 1;
     const radius = stream.spawn.kind === "point" ? (stream.spawn.radiusPx ?? 0) * radiusScale : 0;
     const innerRadius = stream.spawn.kind === "point"
@@ -1083,10 +1117,10 @@ export class TopDownParticleSystem {
       ? this.spawnAtWindwardEdge(flowX, flowY, edgeMargin)
       : undefined;
     const xPx = stream.spawn.kind === "room" ? edgePosition?.x ?? this.random() * this.geometry!.widthPx
-      : stream.spawn.kind === "rectangle" ? centerX + (this.random() - 0.5) * (stream.spawn.widthPx ?? 0) * radiusScale
+      : stream.spawn.kind === "rectangle" ? centerX + (this.random() - 0.5) * (stream.spawn.widthPx ?? 0) * (override?.spawnExtentScale ?? radiusScale)
       : centerX + Math.cos(angle) * distance;
     const yPx = stream.spawn.kind === "room" ? edgePosition?.y ?? this.random() * this.geometry!.heightPx
-      : stream.spawn.kind === "rectangle" ? centerY + (this.random() - 0.5) * (stream.spawn.heightPx ?? 0) * radiusScale
+      : stream.spawn.kind === "rectangle" ? centerY + (this.random() - 0.5) * (stream.spawn.heightPx ?? 0) * (override?.spawnExtentScale ?? radiusScale)
       : centerY + Math.sin(angle) * distance;
     const velocityXPxPerSecond = this.between(stream.velocityXMinPxPerSecond, stream.velocityXMaxPxPerSecond) * speedScale + (override?.velocityOffsetXPxPerSecond ?? 0);
     const velocityYPxPerSecond = this.between(stream.velocityYMinPxPerSecond, stream.velocityYMaxPxPerSecond) * speedScale + (override?.velocityOffsetYPxPerSecond ?? 0);
@@ -1116,10 +1150,14 @@ export class TopDownParticleSystem {
     const edgeFlowLifetime = edgeFlow
       ? this.timeToRoomExit(xPx, yPx, velocityXPxPerSecond, velocityYPxPerSecond, edgeMargin)
       : undefined;
-    visual.rotation = this.between(stream.rotationMinRadians ?? 0, stream.rotationMaxRadians ?? 0);
+    const baseRotationRadians = this.between(stream.rotationMinRadians ?? 0, stream.rotationMaxRadians ?? 0);
+    visual.rotation = baseRotationRadians;
     if (override?.windStretchRotationRadians !== undefined) {
       visual.rotation = override.windStretchRotationRadians;
     }
+    const lifetimeScale = override?.lifetimeScale ?? 1;
+    const sampledLifetime = edgeFlowLifetime ?? override?.lifetimeSeconds ??
+      this.between(override?.lifeMinSeconds ?? stream.lifeMinSeconds, override?.lifeMaxSeconds ?? stream.lifeMaxSeconds);
     const state: LiveParticle = {
       visual,
       group,
@@ -1128,6 +1166,7 @@ export class TopDownParticleSystem {
       onDeathStream,
       onDeathOverride,
       sizeScale: override?.sizeScale ?? 1,
+      baseRotationRadians,
       windStretchScale: override?.windStretchScale ?? 1,
       skitter,
       leafFlip,
@@ -1136,21 +1175,21 @@ export class TopDownParticleSystem {
       endAlpha: override?.endAlpha ?? stream.endAlpha,
       startColorRgb: override?.startColor ? parseHexColor(override.startColor) : stream.startColorRgb,
       endColorRgb: override?.endColor ? parseHexColor(override.endColor) : stream.endColorRgb,
-      colorTransitionFraction: override?.colorTransitionFraction ?? 1,
-      colorTransitionSeconds: override?.colorTransitionSeconds,
+      colorTransitionFraction: override?.colorTransitionFraction ?? stream.colorTransitionFraction ?? 1,
+      colorTransitionSeconds: override?.colorTransitionSeconds ?? stream.colorTransitionSeconds,
       xPx,
       yPx,
       velocityXPxPerSecond,
       velocityYPxPerSecond,
+      windOffsetXPxPerSecond: override?.velocityOffsetXPxPerSecond ?? 0,
+      windOffsetYPxPerSecond: override?.velocityOffsetYPxPerSecond ?? 0,
       orbitCenterXPx: stream.orbitAngularSpeedRadiansPerSecond ? centerX : undefined,
       orbitCenterYPx: stream.orbitAngularSpeedRadiansPerSecond ? centerY : undefined,
       orbitRadiusPx: stream.orbitAngularSpeedRadiansPerSecond ? Math.hypot(xPx - centerX, yPx - centerY) : undefined,
       orbitAngleRadians: stream.orbitAngularSpeedRadiansPerSecond ? angle : undefined,
       orbitAngularSpeedRadiansPerSecond: stream.orbitAngularSpeedRadiansPerSecond ? stream.orbitAngularSpeedRadiansPerSecond * speedScale : undefined,
       ageSeconds: 0,
-      lifeSeconds: edgeFlowLifetime ?? override?.lifetimeSeconds ??
-        this.between(override?.lifeMinSeconds ?? stream.lifeMinSeconds, override?.lifeMaxSeconds ?? stream.lifeMaxSeconds) *
-        (override?.lifetimeScale ?? 1) / speedScale
+      lifeSeconds: sampledLifetime * lifetimeScale / (edgeFlowLifetime !== undefined || override?.lifetimeSeconds !== undefined ? 1 : speedScale)
     };
     this.updateVisual(state);
     group.container.addParticle(visual);
@@ -1203,7 +1242,8 @@ export class TopDownParticleSystem {
     const colorProgress = state.leafFlip
       ? flipProgress
       : state.colorTransitionSeconds === undefined
-        ? t / state.colorTransitionFraction : state.ageSeconds / state.colorTransitionSeconds;
+        ? state.colorTransitionFraction === 0 ? 1 : t / state.colorTransitionFraction
+        : state.colorTransitionSeconds === 0 ? 1 : state.ageSeconds / state.colorTransitionSeconds;
     state.visual.tint = mixColor(state.startColorRgb, state.endColorRgb, colorProgress);
     const alpha = state.startAlpha + (state.endAlpha - state.startAlpha) * t;
     state.visual.alpha = Math.max(0, Math.min(1,

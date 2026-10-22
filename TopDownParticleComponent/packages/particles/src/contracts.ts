@@ -7,6 +7,11 @@ export interface ParticleColors { primary: string; secondary: string; }
 export type ParticleColorPalette = readonly string[];
 /** Named bindings preserve common behavior; a number selects that exact ordered palette entry. */
 export type ParticleColorBinding = "primary" | "secondary" | "transition" | "flip" | number;
+export interface ParticleStreamColorBinding {
+  control: string;
+  mode: "transition" | "flip" | "role" | "value";
+  role?: "primary" | "secondary";
+}
 /** Whether a palette update affects only new particles or also living particles. */
 export type ParticleColorChangeMode = "birth-snapshot" | "retint";
 
@@ -85,6 +90,16 @@ export interface ParticleSpawnShape {
 export interface ParticleStreamDefinition {
   id: string;
   textureId: string;
+  /** Catalog semantic role used to derive point stream groups at registration. */
+  role?: "flame" | "smoke" | "ember";
+  isWindBlown?: boolean;
+  isWindStretched?: boolean;
+  windEdgeFlow?: boolean;
+  windMotionMixEnabled?: boolean;
+  lifetimeTuningApplicable?: boolean;
+  colorBinding?: ParticleStreamColorBinding;
+  colorTransitionSeconds?: number;
+  colorTransitionFraction?: number;
   layer: ParticleLayer;
   /** Draw priority among groups in the same lighting pass; higher values render above lower values. */
   drawOrder?: number;
@@ -194,11 +209,13 @@ export interface ParticleSurgeInput {
   seed?: number;
 }
 
-/** Overrides preserve the effect definition and apply to new particles. */
+/** Per-stream values preserve the registered recipe; multipliers and wind update an active emitter's living particles, while rates and spawn settings govern later spawns. */
 export interface ParticleStreamOverrides {
   ratePerSecond?: number;
   sizeScale?: number;
   radiusScale?: number;
+  /** Scales authored point/rectangle spawn extents proportionally. */
+  spawnExtentScale?: number;
   /** Absolute minimum distance from a point emitter when spawning particles. */
   innerRadiusPx?: number;
   /** Multiplies planar velocity and divides lifetime, speeding the full motion. */
@@ -305,6 +322,8 @@ export interface ParticleRoomEmitterInput {
   colorChangeMode?: ParticleColorChangeMode;
   /** Optional per-stream ordered palettes; useful when a style combines distinct particle shapes. */
   streamColors?: Record<string, ParticleColorPalette>;
+  /** Exact per-stream resolved values from the catalog adapter, applied after shared controls. */
+  streamOverrides?: Record<string, ParticleStreamOverrides>;
   colorTransitionFraction?: number;
   colorTransitionSeconds?: number;
   layer?: "style-default" | ParticleLayer;

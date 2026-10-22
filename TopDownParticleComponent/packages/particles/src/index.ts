@@ -1,4 +1,30 @@
 export { TopDownEffects } from "./TopDownEffects.js";
+export type { CatalogEffectInstanceInput } from "./TopDownEffects.js";
+export {
+  CATALOG_CONTROL_MAPPINGS,
+  adaptCatalogParticleEffect,
+  mapCatalogControlValues,
+  mapCatalogStreamOverrides,
+  getSupportedCatalogControls,
+  resolveCatalogRecipe,
+  resolveWindVector
+} from "./catalog-adapter.js";
+export type {
+  CatalogColorBinding,
+  CatalogControlContract,
+  CatalogFamilyTuningContract,
+  CatalogMappedStream,
+  CatalogOverlayRecipe,
+  CatalogParticleEffect,
+  CatalogParticleRecipe,
+  CatalogParticleStream,
+  CatalogRecipe,
+  CatalogRecipeBase,
+  CatalogRenderingMode,
+  CatalogResolvedTuning,
+  CatalogStainRecipe,
+  CatalogTuningContractFixture
+} from "./catalog-adapter.js";
 export type {
   RoomEffectInput,
   RoomEffectWind,
@@ -28,6 +54,7 @@ export type {
   ParticleBurstInput,
   ParticleColorChangeMode,
   ParticleColorBinding,
+  ParticleStreamColorBinding,
   ParticleColorPalette,
   ParticleColors,
   ParticleEffectDefinition,

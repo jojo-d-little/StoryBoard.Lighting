@@ -19,6 +19,14 @@ and loads them automatically through the `TopDownEffects.create()` factory,
 including stain art. Callers can override
 selected textures and manage stains through the shared effects controller.
 
+The harness **Catalog alignment** tab loads the current runtime catalog and
+authoring tuning-contract fixtures. It lets you inspect and edit raw recipes,
+generates only the controls declared for each recipe family, and previews sparse
+resolved values through the same catalog adapter used by the package.
+
+Stage 08.5 implementation and validation notes are recorded in the
+[particle package boundary documentation](packages/particles/README.md#stage-085-implementation-checkpoint--2026-10-20).
+
 ## Run the prototype
 
 Install dependencies in both workspaces (`TopDown` and this directory), then

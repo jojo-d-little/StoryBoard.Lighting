@@ -1,0 +1,1821 @@
+{
+  "schemaVersion": "3.0",
+  "particleEffectFamilyTuningContracts": [
+    {
+      "family": "rain",
+      "description": "Room-wide falling rain with recipe-authored drops and landing ripples.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Drop color",
+            "secondary": "Ripple color"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "rain-drop",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "rain-ripple",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "fire",
+      "description": "Attachable flame streams, including recipe-authored flame, tip, and ember groups.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Flame core",
+            "secondary": "Flame edge"
+          },
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "candle-flame",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "flame-tip",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "spark-glow",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "smoke",
+      "description": "Attachable smoke from a fire style, with independent rate, lifetime, size, color, and wind controls.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Dense smoke",
+            "secondary": "Thin smoke"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "candle-smoke",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "smoke-puff",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "water-spatter",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "rain-drop",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "electrical-sparks",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "fragment",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "wall-debris",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "rubble-chip",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "pipe-steam",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "smoke-puff",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "impact-dust",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "soft-mote",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "leaking-drip",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "rain-drop",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "insect-orbit",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "organic-mote",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "magic-aura",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "spark-glow",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "toxic-cloud",
+      "description": "A localized point-particle effect attached to an object.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Spawn radius multiplier",
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "smoke-puff",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "snowfall",
+      "description": "Room-wide falling snow particles.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Fresh flake",
+            "secondary": "Faded flake"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "snowflake",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "hail",
+      "description": "Room-wide hail with falling stones and recipe-authored impacts.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Hailstone",
+            "secondary": "Impact"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "fragment",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "rain-ripple",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "ashfall",
+      "description": "Room-wide drifting ash particles.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "New ash",
+            "secondary": "Faded ash"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "fragment",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "cinderfall",
+      "description": "Room-wide cinders with recipe-authored impacts.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Hot cinder",
+            "secondary": "Cooling cinder"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "fragment",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "soft-mote",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "motes",
+      "description": "Room-wide drifting or organic mote particles.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups. A stream with lifetimeTuningApplicable false is excluded; true opts it in; when absent, it participates by default. Point-spawned onDeathStreamId follow-ups are explicitly excluded unless opted in.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Visible mote",
+            "secondary": "Fading mote"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "drifting-mote",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "organic-mote",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "leaves",
+      "description": "Room-wide oak, maple, oval, or mixed leaf particles.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "roleLabels": {
+            "primary": "Leaf upper surface",
+            "secondary": "Leaf underside"
+          },
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "leaf-maple",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "leaf-oak",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "leaf-oval",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "fog",
+      "description": "A repeating room atmosphere fog overlay.",
+      "controls": [
+        {
+          "name": "CoverageMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Coverage multiplier",
+          "description": "Scales the authored recipe coveragePx for fog or cloud. Omitted means the neutral multiplier 1. Zero requests zero covered area, which the presentation adapter should treat as a disabled overlay.",
+          "bindingBehavior": "Multiply recipe.coveragePx by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "OpacityMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Opacity multiplier",
+          "description": "Multiplies authored recipe opacity for fog, cloud, or surface-mark; clamp the resulting opacity to [0, 1]. Omitted means the neutral multiplier 1. Zero is fully transparent; factors above 1 increase opacity until the result reaches 1.",
+          "bindingBehavior": "Compute clamp(recipe.opacity * this factor, 0, 1); do not replace authored opacity.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Tint",
+          "kind": "color",
+          "unit": "sRGB hex",
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "fog",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "cloud",
+      "description": "A repeating room atmosphere cloud layer.",
+      "controls": [
+        {
+          "name": "CoverageMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Coverage multiplier",
+          "description": "Scales the authored recipe coveragePx for fog or cloud. Omitted means the neutral multiplier 1. Zero requests zero covered area, which the presentation adapter should treat as a disabled overlay.",
+          "bindingBehavior": "Multiply recipe.coveragePx by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "OpacityMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Opacity multiplier",
+          "description": "Multiplies authored recipe opacity for fog, cloud, or surface-mark; clamp the resulting opacity to [0, 1]. Omitted means the neutral multiplier 1. Zero is fully transparent; factors above 1 increase opacity until the result reaches 1.",
+          "bindingBehavior": "Compute clamp(recipe.opacity * this factor, 0, 1); do not replace authored opacity.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedPxPerSecond",
+          "kind": "number",
+          "unit": "room pixels/second",
+          "minimum": 0,
+          "maximum": 1000,
+          "bindingBehavior": "Use as the effect resolved environmental wind-speed input before applying WindSpeedMultiplier.",
+          "description": "Absolute resolved environmental wind-speed input in room pixels per second. It supplies the effect wind state; WindSpeedMultiplier separately scales this effect response.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -1,
+          "maximum": 360,
+          "bindingBehavior": "Use as the resolved environmental wind direction before applying WindDirectionOffsetDegrees.",
+          "description": "Absolute resolved environmental wind direction in screen-space degrees; -1 denotes calm. WindDirectionOffsetDegrees is a separate relative transform.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindSpeedMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "label": "Wind speed multiplier",
+          "description": "Scales the effect response to the resolved environmental WindSpeedPxPerSecond input; it does not replace or alter that input. Omitted means the neutral multiplier 1. Zero removes this effect wind response.",
+          "bindingBehavior": "Multiply the resolved environmental wind vector magnitude for this effect by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "WindDirectionOffsetDegrees",
+          "kind": "number",
+          "unit": "degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "description": "Relative signed angular offset applied to the resolved environmental WindDirectionDegrees. Omitted means 0 degrees. It does not replace the environmental direction.",
+          "bindingBehavior": "Add this relative angle to a valid resolved wind direction; calm direction remains calm.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Tint",
+          "kind": "color",
+          "unit": "sRGB hex",
+          "zeroBehavior": "notApplicable"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "cloud",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "surface-mark",
+      "description": "A persistent stationary mark on the room surface, including splatters, patches, streaks, and directional sprays.",
+      "controls": [
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Size multiplier",
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions; for surface-mark, scales the recipe-authored sizePx. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor; for surface-mark, multiply recipe sizePx by the same factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "OpacityMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "label": "Opacity multiplier",
+          "description": "Multiplies authored recipe opacity for fog, cloud, or surface-mark; clamp the resulting opacity to [0, 1]. Omitted means the neutral multiplier 1. Zero is fully transparent; factors above 1 increase opacity until the result reaches 1.",
+          "bindingBehavior": "Compute clamp(recipe.opacity * this factor, 0, 1); do not replace authored opacity.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "ordered sRGB hex pair",
+          "bindingBehavior": "palette",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "DirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": -360,
+          "maximum": 360,
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "stain-patch-base",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-patch-base-variant-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-patch-base-variant-b",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-patch-detail",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-patch-detail-variant-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-patch-detail-variant-b",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-splatter-base",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-splatter-base-variant-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-splatter-base-variant-b",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-splatter-detail",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-splatter-detail-variant-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-splatter-detail-variant-b",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-spray-streak-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-spray-streak-b",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-spray-streak-c",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-streak-base",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-streak-base-variant-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-streak-base-variant-b",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-streak-detail",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-streak-detail-variant-a",
+          "unit": "package texture ID"
+        },
+        {
+          "name": "stain-streak-detail-variant-b",
+          "unit": "package texture ID"
+        }
+      ]
+    }
+  ]
+}
