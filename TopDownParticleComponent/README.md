@@ -58,6 +58,15 @@ Particle package releases use a separate `particles-v<version>` tag. See
 [`Scripts/Release.ps1`](Scripts/Release.ps1) for the version, validation, and
 tagging workflow.
 
+For a local Portal integration candidate, run
+[`Scripts/BuildLocalPrerelease.ps1`](Scripts/BuildLocalPrerelease.ps1). It
+validates the current worktree, creates a uniquely versioned prerelease tarball
+and checksum manifest under `%TEMP%\StoryboardParticlePrereleases` by default,
+then installs and smoke-checks that exact tarball in a clean temporary
+consumer. Pass `-Version` or `-OutputDirectory` to override the defaults. The
+script leaves the package manifest, Git history, and registry untouched and
+prints the command for installing the tarball in WebPortal.
+
 The harness loads game-owned style recipes from
 [`effects/starter-effects.json`](effects/starter-effects.json) and producer
 settings from [`effects/starter-scene.json`](effects/starter-scene.json).
