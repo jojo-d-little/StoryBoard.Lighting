@@ -31,6 +31,25 @@ export interface CatalogParticleStream extends ParticleStreamDefinition {
   colorTransitionFraction?: number;
 }
 
+/**
+ * Resolves one eligible stream's absolute particle count for a burst occurrence.
+ * An omitted recipe baseline or quantity multiplier defaults to one.
+ */
+export function resolveBurstCount(burstCount: number | undefined, quantityMultiplier = 1): number {
+  const baseline = burstCount ?? 1;
+  if (!Number.isSafeInteger(baseline) || baseline < 1) {
+    throw new RangeError("burstCount must be a positive safe integer when supplied.");
+  }
+  if (!Number.isFinite(quantityMultiplier) || quantityMultiplier < 0) {
+    throw new RangeError("quantityMultiplier must be finite and nonnegative.");
+  }
+  const resolvedCount = Math.floor(baseline * quantityMultiplier + 0.5);
+  if (!Number.isSafeInteger(resolvedCount)) {
+    throw new RangeError("Resolved burst count must be a safe whole-particle count.");
+  }
+  return resolvedCount;
+}
+
 export interface CatalogRecipeBase {
   renderingMode: CatalogRenderingMode;
   family: string;
@@ -197,7 +216,11 @@ export function adaptCatalogParticleEffect(source: CatalogParticleEffect): Catal
     if (stream.colorBinding && stream.colorBinding.control.length === 0) {
       throw new TypeError(`Catalog stream '${stream.id}' has an empty color-binding control.`);
     }
-    return { ...stream, textureId };
+    if (stream.burstCount !== undefined && !stream.surgeOnly) {
+      throw new TypeError(`Catalog stream '${stream.id}' may define burstCount only when surgeOnly is true.`);
+    }
+    const burstCount = stream.surgeOnly ? resolveBurstCount(stream.burstCount) : undefined;
+    return { ...stream, ...(burstCount === undefined ? {} : { burstCount }), textureId };
   });
   const adaptedRecipe: CatalogParticleRecipe = { ...recipe, streams };
   const effect: ParticleEffectDefinition = {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ParticleContainer, Texture } from "pixi.js";
 import { TopDownParticleSystem } from "./TopDownParticleSystem.js";
+import { resolveBurstCount } from "./catalog-adapter.js";
 import { recolorStyleColor } from "./particle-core.js";
 import type { ParticleEffectDefinition } from "./contracts.js";
 
@@ -406,6 +407,75 @@ describe("TopDownParticleSystem", () => {
       expect(particles.getStats().liveParticles).toBe(0);
       particles.emitBurst(burst);
       expect(particles.getStats().liveParticles).toBe(3);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("emits resolved catalog counts per surge-only stream and leaves follow-ups parent-triggered", () => {
+    const particles = new TopDownParticleSystem({ textures: { dot: Texture.WHITE }, maxParticles: 64, seed: 17 });
+    try {
+      particles.setRoomGeometry(geometry);
+      particles.registerEffect({
+        id: "catalog-burst",
+        streams: [
+          {
+            ...effect.streams[0], id: "sparks", ratePerSecond: 0, surgeOnly: true, burstCount: 12,
+            lifeMinSeconds: 0.1, lifeMaxSeconds: 0.1, onDeathStreamId: "settled"
+          },
+          {
+            ...effect.streams[0], id: "dust", ratePerSecond: 0, surgeOnly: true, burstCount: 3,
+            lifeMinSeconds: 1, lifeMaxSeconds: 1
+          },
+          {
+            ...effect.streams[0], id: "settled", ratePerSecond: 0,
+            lifeMinSeconds: 2, lifeMaxSeconds: 2
+          }
+        ]
+      });
+
+      const sparksCount = resolveBurstCount(12, 0.5);
+      const dustCount = resolveBurstCount(3, 0.5);
+      particles.emitBurst({ id: "occurrence-sparks", effectId: "catalog-burst", streamId: "sparks", xPx: 40, yPx: 40, count: sparksCount });
+      particles.emitBurst({ id: "occurrence-dust", effectId: "catalog-burst", streamId: "dust", xPx: 40, yPx: 40, count: dustCount });
+      expect(particles.getStats().emittedParticles).toBe(8);
+
+      particles.update(0);
+      particles.update(0.2);
+      // Six parent particles die and each starts one normal follow-up. The 0.5 multiplier is not reapplied.
+      expect(particles.getStats().emittedParticles).toBe(14);
+      expect(particles.getStats().liveParticles).toBe(8);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("completes zero-count resolved bursts without emission or retry", () => {
+    const particles = system();
+    try {
+      const count = resolveBurstCount(1, 0.4);
+      expect(count).toBe(0);
+      const zeroBurst = { id: "rounded-to-zero", effectId: "test", streamId: "dots", xPx: 30, yPx: 30, count };
+      particles.emitBurst(zeroBurst);
+      expect(particles.getStats().emittedParticles).toBe(0);
+      particles.emitBurst({ ...zeroBurst, count: 1 });
+      expect(particles.getStats().emittedParticles).toBe(0);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("validates authored burst counts as positive safe integers on surge-only streams", () => {
+    const particles = system();
+    try {
+      for (const invalidStream of [
+        { ...effect.streams[0], id: "not-surge-only", burstCount: 2 },
+        { ...effect.streams[0], id: "zero-baseline", surgeOnly: true, burstCount: 0 },
+        { ...effect.streams[0], id: "unsafe-baseline", surgeOnly: true, burstCount: Number.MAX_SAFE_INTEGER + 1 }
+      ]) {
+        expect(() => particles.registerEffect({ id: `invalid-${invalidStream.id}`, streams: [invalidStream] }))
+          .toThrow(/burstCount/);
+      }
     } finally {
       particles.dispose();
     }

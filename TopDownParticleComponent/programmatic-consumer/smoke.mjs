@@ -1,5 +1,11 @@
 import { Texture } from "pixi.js";
-import { TopDownEffects } from "../packages/particles/dist/index.js";
+import { TopDownEffects, resolveBurstCount } from "../packages/particles/dist/index.js";
+
+if (resolveBurstCount(12, 0.5) !== 6 || resolveBurstCount(12, 2) !== 24 ||
+    resolveBurstCount(3, 0.5) !== 2 || resolveBurstCount(1, 0.4) !== 0 ||
+    resolveBurstCount(undefined, undefined) !== 1) {
+  throw new Error("The package did not expose the expected burst quantity resolver.");
+}
 
 const stainPair = { base: Texture.WHITE, detail: Texture.WHITE };
 

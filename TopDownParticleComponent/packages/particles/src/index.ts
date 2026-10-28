@@ -5,6 +5,7 @@ export {
   adaptCatalogParticleEffect,
   mapCatalogControlValues,
   mapCatalogStreamOverrides,
+  resolveBurstCount,
   getSupportedCatalogControls,
   resolveCatalogRecipe,
   resolveWindVector

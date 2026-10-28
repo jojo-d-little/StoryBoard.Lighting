@@ -1,10 +1,15 @@
 import { Texture } from "pixi.js";
-import { TopDownEffects } from "@jojo-d-little/storyboard-particles";
+import { TopDownEffects, resolveBurstCount } from "@jojo-d-little/storyboard-particles";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const packageRoot = path.dirname(fileURLToPath(import.meta.resolve("@jojo-d-little/storyboard-particles")));
+if (resolveBurstCount(12, 0.5) !== 6 || resolveBurstCount(12, 2) !== 24 ||
+    resolveBurstCount(3, 0.5) !== 2 || resolveBurstCount(1, 0.4) !== 0 ||
+    resolveBurstCount(undefined, undefined) !== 1) {
+  throw new Error("The packed package did not expose the expected burst quantity resolver.");
+}
 for (const asset of [
   "candle-flame.png", "candle-smoke.svg", "cloud-field.svg", "drifting-mote.svg", "flame-tip.svg",
   "fog-field.svg", "fragment.svg", "leaf-maple.svg", "leaf-oak.svg", "leaf-oval.svg", "organic-mote.svg",

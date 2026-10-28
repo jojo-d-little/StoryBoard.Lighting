@@ -733,7 +733,7 @@ export class TopDownParticleSystem {
     const effect = this.effects.get(input.effectId);
     if (!effect) throw new Error(`Unknown particle effect '${input.effectId}'.`);
     if (!Number.isFinite(input.xPx) || !Number.isFinite(input.yPx)) throw new RangeError("Burst position must be finite.");
-    if (!Number.isInteger(input.count) || input.count < 0 || input.count > this.maxParticles) {
+    if (!Number.isSafeInteger(input.count) || input.count < 0 || input.count > this.maxParticles) {
       throw new RangeError("Burst count must be a nonnegative integer within maxParticles.");
     }
     const streams = input.streamId ? effect.streams.filter(stream => stream.id === input.streamId) : effect.streams;

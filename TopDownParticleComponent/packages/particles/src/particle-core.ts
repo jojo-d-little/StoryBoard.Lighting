@@ -267,6 +267,12 @@ export function normalizeEffect(input: ParticleEffectDefinition): NormalizedEffe
     const startColorRgb = parseHexColor(source.startColor);
     const endColor = source.endColor ?? source.startColor;
     const endColorRgb = parseHexColor(endColor);
+    if (source.burstCount !== undefined) {
+      if (!source.surgeOnly) throw new TypeError(`Stream '${streamId}' may define burstCount only when surgeOnly is true.`);
+      if (!Number.isSafeInteger(source.burstCount) || source.burstCount < 1) {
+        throw new RangeError(`Stream '${streamId}' burstCount must be a positive safe integer.`);
+      }
+    }
     return {
       id: streamId,
       textureId: identifier(source.textureId, "texture ID"),
@@ -288,6 +294,7 @@ export function normalizeEffect(input: ParticleEffectDefinition): NormalizedEffe
       drawOrder: finite(source.drawOrder ?? 0, "drawOrder"),
       ratePerSecond: nonnegative(source.ratePerSecond, "ratePerSecond"),
       surgeOnly: source.surgeOnly ?? false,
+      burstCount: source.burstCount,
       spawn,
       lifeMinSeconds,
       lifeMaxSeconds,

@@ -107,6 +107,8 @@ export interface ParticleStreamDefinition {
   ratePerSecond: number;
   /** Zero-rate streams are event-burst eligible and can also be used by configured surges. */
   surgeOnly?: boolean;
+  /** Baseline particles for one explicit catalog burst; only applies to surge-only streams. Defaults to one. */
+  burstCount?: number;
   spawn: ParticleSpawnShape;
   lifeMinSeconds: number;
   lifeMaxSeconds: number;
@@ -337,6 +339,7 @@ export interface ParticleBurstInput {
   effectId: string;
   xPx: number;
   yPx: number;
+  /** Absolute copies per selected stream; callers resolve catalog quantity before calling emitBurst. */
   count: number;
   streamId?: string;
   /** Optional per-stream tuning for this event, including its timed follow-up streams. */

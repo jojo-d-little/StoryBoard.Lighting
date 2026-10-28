@@ -584,6 +584,30 @@ stationary, long-lived fragment when its flight ends. These remain ordinary
 budgeted particles; no sprite swap or collision simulation is required. Room
 replacement clears the settled particles along with the rest of the room state.
 
+## Catalog burst quantity
+
+Catalog particle streams may author `burstCount` on a `surgeOnly` stream. The
+catalog adapter preserves that positive-integer baseline and supplies `1` when
+it is omitted. Use the public `resolveBurstCount(burstCount,
+quantityMultiplier = 1)` helper once for each eligible stream and pass its
+result as `ParticleBurstInput.count` to `emitBurst()`. The resolver uses
+`floor(burstCount * quantityMultiplier + 0.5)`, so nonnegative midpoints round
+up. The multiplier must be finite and nonnegative; the baseline and resolved
+count must be safe whole-particle numbers. A zero result is valid and can be
+submitted to `emitBurst()` as a completed no-op. Streams not marked
+`surgeOnly` are not part of a producer-triggered burst; authored `burstCount`
+on such a stream is invalid.
+
+`emitBurst().count` remains an absolute number of particles per selected stream;
+it does not resolve or apply another multiplier. When emitting several streams
+for one occurrence, resolve each stream's count separately and use distinct
+stream-level event IDs derived from the occurrence ID. A timed `onDeathStreamId`
+follow-up is spawned by its parent particle as usual and is not multiplied
+again. Counts above the configured `maxParticles` limit are rejected with a
+terminal range error. A valid request can still encounter ordinary capacity
+drops if the live-particle budget fills during emission; those are reflected in
+`droppedParticles` and do not change the authored or resolved count.
+
 For event-driven effects, keep an emitter registered and deliver stimuli to its
 ID with `sendStimulus()`. A `burst` stimulus emits the effect's `surgeOnly`
 streams using the emitter's authored overrides; an optional direction and speed

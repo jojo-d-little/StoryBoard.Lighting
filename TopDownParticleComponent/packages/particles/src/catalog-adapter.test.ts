@@ -6,6 +6,7 @@ import {
   getSupportedCatalogControls,
   mapCatalogControlValues,
   mapCatalogStreamOverrides,
+  resolveBurstCount,
   resolveCatalogRecipe,
   resolveWindVector
 } from "./catalog-adapter.js";
@@ -31,10 +32,57 @@ describe("Stage 08 catalog boundary", () => {
       for (const stream of adapted.effect.streams) {
         expect(effect.particleEffect.imageSlots?.[effect.particleEffect.recipe.streams.find(source => source.id === stream.id)!.textureId])
           .toBe(stream.textureId);
+        if (stream.surgeOnly) {
+          expect(stream.burstCount).toBe(effect.particleEffect.recipe.streams.find(source => source.id === stream.id)!.burstCount ?? 1);
+        }
       }
       if (effect.particleEffect.recipe.renderingMode === "room") expect(adapted.roomStyle).toBeDefined();
       else expect(adapted.pointStyle).toBeDefined();
     }
+  });
+
+  it("preserves authored catalog burst baselines and defaults eligible streams to one", () => {
+    const source = structuredClone(particleEffects.find(effect => effect.effectKey === "particle.electrical-sparks")!);
+    if (source.particleEffect.recipe.renderingMode !== "point") throw new Error("Sparks fixture must use the point route.");
+    source.particleEffect.recipe.streams[0].burstCount = 12;
+
+    const adapted = adaptCatalogParticleEffect(source);
+    expect(adapted.recipe.streams[0].burstCount).toBe(12);
+    expect(adapted.effect.streams[0].burstCount).toBe(12);
+
+    const omitted = structuredClone(source);
+    if (omitted.particleEffect.recipe.renderingMode !== "point") throw new Error("Sparks fixture must use the point route.");
+    delete omitted.particleEffect.recipe.streams[0].burstCount;
+    expect(adaptCatalogParticleEffect(omitted).recipe.streams[0].burstCount).toBe(1);
+  });
+
+  it("resolves catalog burst quantities with nonnegative half-up rounding", () => {
+    expect(resolveBurstCount(12, 0.5)).toBe(6);
+    expect(resolveBurstCount(12, 2)).toBe(24);
+    expect(resolveBurstCount(3, 0.5)).toBe(2);
+    expect(resolveBurstCount(1, 0.4)).toBe(0);
+    expect(resolveBurstCount(12, 0)).toBe(0);
+    expect(resolveBurstCount(undefined, undefined)).toBe(1);
+    expect(resolveBurstCount(undefined, 2)).toBe(2);
+    expect(resolveBurstCount(12)).toBe(12);
+  });
+
+  it("rejects invalid burst baselines, multipliers, and unsafe results", () => {
+    for (const multiplier of [-0.1, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      expect(() => resolveBurstCount(12, multiplier)).toThrow(/finite and nonnegative/);
+    }
+    for (const baseline of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => resolveBurstCount(baseline)).toThrow(/positive safe integer/);
+    }
+    expect(() => resolveBurstCount(Number.MAX_SAFE_INTEGER, 2)).toThrow(/safe whole-particle/);
+  });
+
+  it("rejects authored burst counts on streams outside the surge-only path", () => {
+    const source = structuredClone(particleEffects.find(effect => effect.effectKey === "particle.electrical-sparks")!);
+    if (source.particleEffect.recipe.renderingMode !== "point") throw new Error("Sparks fixture must use the point route.");
+    source.particleEffect.recipe.streams[0].surgeOnly = false;
+    source.particleEffect.recipe.streams[0].burstCount = 2;
+    expect(() => adaptCatalogParticleEffect(source)).toThrow(/only when surgeOnly is true/);
   });
 
   it("derives smoke and wind classifications from every catalog stream recipe", () => {
