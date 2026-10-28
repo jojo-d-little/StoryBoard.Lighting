@@ -3,7 +3,15 @@ name: Particle package validation
 on:
   push:
     branches: [main]
+    paths:
+      - 'TopDownParticleComponent/**'
+      - '.github/workflows/particles-package.yml'
+      - '.github/workflows/particles-package-release.yml'
   pull_request:
+    paths:
+      - 'TopDownParticleComponent/**'
+      - '.github/workflows/particles-package.yml'
+      - '.github/workflows/particles-package-release.yml'
 
 permissions:
   contents: read

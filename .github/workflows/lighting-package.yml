@@ -3,7 +3,15 @@ name: Lighting package validation
 on:
   push:
     branches: [main]
+    paths:
+      - 'TopDown/**'
+      - '.github/workflows/lighting-package.yml'
+      - '.github/workflows/lighting-package-release.yml'
   pull_request:
+    paths:
+      - 'TopDown/**'
+      - '.github/workflows/lighting-package.yml'
+      - '.github/workflows/lighting-package-release.yml'
 
 permissions:
   contents: read

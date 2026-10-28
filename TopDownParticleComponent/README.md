@@ -54,7 +54,8 @@ and fade are configured; they do not run as moving particle streams.
 Useful checks: `npm run typecheck`, `npm test`, `npm run consumer:smoke`,
 `npm run consumer:packed-smoke`, and `npm run pack:package`.
 
-Particle package releases use a separate `particles-v<version>` tag. See
+Particle package releases use the `particles-v<version>` tag format, matching
+the lighting package's `lighting-v<version>` tags. See
 [`Scripts/Release.ps1`](Scripts/Release.ps1) for the version, validation, and
 tagging workflow.
 

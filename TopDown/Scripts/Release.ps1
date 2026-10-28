@@ -68,12 +68,13 @@ if ($Version -eq $currentVersion) {
     throw "Release version '$Version' is already the current package version."
 }
 
-$localTag = git tag --list $Version
-if ($localTag) { throw "Tag '$Version' already exists locally." }
+$tag = "lighting-v$Version"
+$localTag = git tag --list $tag
+if ($localTag) { throw "Tag '$tag' already exists locally." }
 
-git ls-remote --exit-code --tags origin "refs/tags/$Version" *> $null
-if ($LASTEXITCODE -eq 0) { throw "Tag '$Version' already exists on origin." }
-if ($LASTEXITCODE -ne 2) { throw "Could not check whether tag '$Version' exists on origin." }
+git ls-remote --exit-code --tags origin "refs/tags/$tag" *> $null
+if ($LASTEXITCODE -eq 0) { throw "Tag '$tag' already exists on origin." }
+if ($LASTEXITCODE -ne 2) { throw "Could not check whether tag '$tag' exists on origin." }
 
 Write-Host "Updating $packageName from $currentVersion to $Version..."
 Invoke-CheckedCommand 'npm' @('pkg', 'set', "version=$Version", '--prefix', 'packages/lighting')
@@ -94,9 +95,9 @@ Invoke-CheckedCommand 'npm' @('run', 'pack:package')
 Write-Host "Committing release $Version..."
 Invoke-CheckedCommand 'git' @('add', 'packages/lighting/package.json')
 Invoke-CheckedCommand 'git' @('commit', '-m', "Release $Version")
-Invoke-CheckedCommand 'git' @('tag', '-a', $Version, '-m', "Release $Version")
+Invoke-CheckedCommand 'git' @('tag', '-a', $tag, '-m', "Release lighting package $Version")
 
-Write-Host "Pushing main and release tag $Version..."
-Invoke-CheckedCommand 'git' @('push', '--atomic', '--follow-tags', 'origin', 'main')
+Write-Host "Pushing main and release tag $tag..."
+Invoke-CheckedCommand 'git' @('push', '--atomic', 'origin', 'main', $tag)
 
 Write-Host "Release $Version pushed. GitHub Actions will validate and publish the package." -ForegroundColor Green

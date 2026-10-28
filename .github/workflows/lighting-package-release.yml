@@ -3,7 +3,7 @@ name: Publish lighting package
 on:
   push:
     tags:
-      - '*.*.*'
+      - 'lighting-v*'
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
       - name: Verify release tag and package version
         shell: pwsh
         run: |
-          $tagVersion = $env:GITHUB_REF_NAME
+          $tagVersion = $env:GITHUB_REF_NAME -replace '^lighting-v', ''
           $package = Get-Content .\packages\lighting\package.json -Raw | ConvertFrom-Json
           $packageVersion = [string]$package.version
           $expectedName = '@jojo-d-little/storyboard-lighting'

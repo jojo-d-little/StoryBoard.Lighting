@@ -35,9 +35,10 @@ From `main` with a clean working tree, run:
 ```
 
 The script suggests the next patch version, validates the package, commits the
-version change, creates a SemVer release tag, and atomically pushes `main` and
-the tag. The tag-triggered GitHub workflow performs the final validation and
-publishes the private npm package.
+version change, creates a `lighting-v<version>` tag, and atomically pushes
+`main` and the tag. The tag-triggered GitHub workflow performs the final
+validation and publishes the private npm package. The particle package uses the
+matching `particles-v<version>` format.
 
 The repository CI workflow repeats the package build, type checks, automated
 tests, and packed-consumer validation. npm publication remains a controlled
