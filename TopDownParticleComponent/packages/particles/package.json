@@ -1,6 +1,6 @@
 {
   "name": "@jojo-d-little/storyboard-particles",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Host-driven top-down particle, stain, and atmosphere systems for StoryBoard",
   "publishConfig": {
     "@jojo-d-little:registry": "https://npm.pkg.github.com"
