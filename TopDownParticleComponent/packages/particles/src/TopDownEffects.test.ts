@@ -42,6 +42,68 @@ function registerRain(effects: TopDownEffects): RegisteredRoomEffectName {
 }
 
 describe("TopDownEffects public facade", () => {
+  it("normalizes catalog stain directions for every authored style", () => {
+    const catalog = JSON.parse(readFileSync(new URL("../../../effects/presentation-effects.catalog.json", import.meta.url), "utf8").replace(/^\uFEFF/, "")) as { effects: CatalogParticleEffect[] };
+    const stainEffects = catalog.effects.filter(effect => effect.particleEffect.recipe.renderingMode === "stain");
+    const pair = { base: Texture.WHITE, detail: Texture.WHITE };
+    const effects = new TopDownEffects({
+      textures: {
+        particles: {},
+        stains: { splatter: pair, patch: pair, streak: pair, "directional-spray": pair }
+      }
+    });
+    try {
+      for (const entry of stainEffects) effects.registerCatalogEffect(entry);
+      const requests = [
+        -90, 270, 360, 0, -360, 0, -0.25, 359.75, 123.456, 123.456
+      ];
+      for (const effect of stainEffects) {
+        const id = `catalog-${effect.effectKey}`;
+        const snapshots = new Map<number, { rotation: number; x: number; y: number }>();
+        for (const directionDegrees of requests) {
+          effects.upsert({ kind: "catalog", input: {
+            id, effectKey: effect.effectKey,
+            xPx: 120, yPx: 90, tuning: { DirectionDegrees: directionDegrees }
+          } });
+          const group = effects.preLight.children[0];
+          const heading = ((directionDegrees % 360) + 360) % 360;
+          const previous = snapshots.get(heading);
+          if (previous) {
+            expect(group.rotation).toBeCloseTo(previous.rotation);
+            if (effect.effectKey.endsWith("directional-spray")) {
+              expect(group.position.x).toBeCloseTo(previous.x);
+              expect(group.position.y).toBeCloseTo(previous.y);
+            }
+          } else {
+            snapshots.set(heading, { rotation: group.rotation, x: group.position.x, y: group.position.y });
+          }
+          if (!effect.effectKey.endsWith(".patch")) expect(group.rotation).toBeCloseTo(heading * Math.PI / 180);
+        }
+        effects.remove(id);
+      }
+    } finally {
+      effects.dispose();
+    }
+  });
+
+  it("rejects invalid stain directions through the catalog facade", () => {
+    const catalog = JSON.parse(readFileSync(new URL("../../../effects/presentation-effects.catalog.json", import.meta.url), "utf8").replace(/^\uFEFF/, "")) as { effects: CatalogParticleEffect[] };
+    const effect = catalog.effects.find(entry => entry.effectKey === "particle.stain.splatter")!;
+    const pair = { base: Texture.WHITE, detail: Texture.WHITE };
+    const effects = new TopDownEffects({ textures: { particles: {}, stains: { splatter: pair, patch: pair, streak: pair } } });
+    try {
+      effects.registerCatalogEffect(effect);
+      for (const directionDegrees of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -360.001, 360.001]) {
+        expect(() => effects.upsert({ kind: "catalog", input: {
+          id: `invalid-${String(directionDegrees)}`, effectKey: effect.effectKey,
+          xPx: 0, yPx: 0, tuning: { DirectionDegrees: directionDegrees }
+        } })).toThrow(RangeError);
+      }
+    } finally {
+      effects.dispose();
+    }
+  });
+
   it("registers and routes catalog point, room, overlay, and stain recipes through the shared API", () => {
     const catalog = JSON.parse(readFileSync(new URL("../../../effects/presentation-effects.catalog.json", import.meta.url), "utf8").replace(/^\uFEFF/, "")) as { effects: CatalogParticleEffect[] };
     const entries = catalog.effects.filter(effect => effect.category === "ParticleEffect");

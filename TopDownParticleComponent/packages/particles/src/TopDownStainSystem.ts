@@ -396,16 +396,14 @@ function normalizeStain(input: TopDownStainInput): NormalizedStain {
   if (!Number.isFinite(order)) throw new RangeError("Stain order must be finite.");
   const opacity = input.opacity ?? 1;
   const amount = input.amount ?? 1;
-  const directionDegrees = input.directionDegrees ?? 0;
+  const authoredDirectionDegrees = input.directionDegrees ?? 0;
+  const directionDegrees = normalizeStainDirection(authoredDirectionDegrees);
   const layer = input.layer ?? "pre-light";
   if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
     throw new RangeError("Stain opacity must be between 0 and 1.");
   }
   if (!Number.isFinite(amount) || amount < 0 || amount > 1) {
     throw new RangeError("Stain amount must be between 0 and 1.");
-  }
-  if (!Number.isFinite(directionDegrees) || directionDegrees < 0 || directionDegrees >= 360) {
-    throw new RangeError("Stain directionDegrees must be in 0..359.");
   }
   if (layer !== "pre-light" && layer !== "post-light") {
     throw new TypeError("Stain layer must be 'pre-light' or 'post-light'.");
@@ -428,6 +426,13 @@ function normalizeStain(input: TopDownStainInput): NormalizedStain {
     throw new RangeError("Stain fadeOutSeconds cannot exceed lifetimeSeconds.");
   }
   return { ...input, order, colors, opacity, amount, directionDegrees, layer, active: input.active ?? true };
+}
+
+function normalizeStainDirection(directionDegrees: number): number {
+  if (!Number.isFinite(directionDegrees) || directionDegrees < -360 || directionDegrees > 360) {
+    throw new RangeError("Stain directionDegrees must be between -360 and 360 degrees.");
+  }
+  return ((directionDegrees % 360) + 360) % 360;
 }
 
 function parseHex(color: string): number {

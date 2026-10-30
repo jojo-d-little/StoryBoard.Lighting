@@ -52,6 +52,51 @@ describe("TopDownStainSystem", () => {
     }
   });
 
+  it("normalizes supported stain headings consistently for every style", () => {
+    const styles = ["splatter", "patch", "streak", "directional-spray"] as const;
+    for (const style of styles) {
+      const stains = stainSystem();
+      try {
+        const directions = [-90, 270, 360, 0, -360, 0, -0.25, 359.75, 123.456, 123.456];
+        const snapshots = new Map<number, { rotation: number; x: number; y: number }>();
+        for (const directionDegrees of directions) {
+          stains.upsertStain({
+            id: "angle", style, xPx: 120, yPx: 90, sizePx: 180, directionDegrees
+          });
+          const group = stains.preLight.children[0];
+          const heading = ((directionDegrees % 360) + 360) % 360;
+          const previous = snapshots.get(heading);
+          if (previous) {
+            expect(group.rotation).toBeCloseTo(previous.rotation);
+            if (style === "directional-spray") {
+              expect(group.position.x).toBeCloseTo(previous.x);
+              expect(group.position.y).toBeCloseTo(previous.y);
+            }
+          } else {
+            snapshots.set(heading, { rotation: group.rotation, x: group.position.x, y: group.position.y });
+          }
+          if (style !== "patch") expect(group.rotation).toBeCloseTo(heading * Math.PI / 180);
+        }
+      } finally {
+        stains.dispose();
+      }
+    }
+  });
+
+  it("rejects non-finite stain headings and finite values outside the authored range", () => {
+    const stains = stainSystem();
+    try {
+      for (const directionDegrees of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -360.001, 360.001]) {
+        expect(() => stains.upsertStain({
+          id: `invalid-${String(directionDegrees)}`, style: "streak", xPx: 0, yPx: 0,
+          sizePx: 10, directionDegrees
+        })).toThrow(RangeError);
+      }
+    } finally {
+      stains.dispose();
+    }
+  });
+
   it("gives each stain stable, ID-seeded shape variation without changing its directed heading", () => {
     const first = stainSystem();
     const second = stainSystem();
