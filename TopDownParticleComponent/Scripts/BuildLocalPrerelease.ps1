@@ -34,13 +34,12 @@ if ($package.name -ne '@jojo-d-little/storyboard-particles') {
 }
 
 if (-not $Version) {
-    if ([string]$package.version -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.\d+') {
+    if ([string]$package.version -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)') {
         throw "Cannot derive a preview version from '$($package.version)'. Pass -Version explicitly."
     }
-    $nextMinor = [int]$matches.minor + 1
     $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
     $nonce = Get-Random -Minimum 100000 -Maximum 999999
-    $Version = "$($matches.major).$nextMinor.0-preview.$stamp.$nonce"
+    $Version = "$($matches.major).$($matches.minor).$($matches.patch)-preview.$stamp.$nonce"
 }
 
 if (-not $OutputDirectory) {

@@ -146,6 +146,7 @@ export interface CatalogResolvedTuning {
   Colors?: { primary: string; secondary: string };
   Tint?: string;
   DirectionDegrees?: number;
+  EmissionTimingJitterPercent?: number;
 }
 
 export interface CatalogMappedStream extends CatalogParticleStream {
@@ -183,8 +184,11 @@ export const CATALOG_CONTROL_MAPPINGS = {
   WindDirectionDegrees: "passes the resolved environmental direction; -1 denotes calm and 0 is rightward",
   Colors: "applies primary/secondary roles through each stream colorBinding or the stain palette",
   Tint: "replaces the overlay tint",
-  DirectionDegrees: "sets stain travel/orientation direction"
+  DirectionDegrees: "sets stain direction or rotates authored point-particle velocity for directional water/electric families",
+  EmissionTimingJitterPercent: "varies continuous inter-particle intervals around the effective cadence for directional water/electric families"
 } as const;
+
+const DIRECTIONAL_STREAM_FAMILIES = new Set(["water-fountain", "electrical-arcing"]);
 
 export function getSupportedCatalogControls(
   recipe: CatalogRecipe,
@@ -210,6 +214,12 @@ export function adaptCatalogParticleEffect(source: CatalogParticleEffect): Catal
     throw new TypeError("Catalog particle effects require an effect key, family, and at least one stream.");
   }
   const imageSlotMap = { ...(particleEffect.imageSlots ?? {}) };
+  // Stage 01 keeps the authored rain-ripple slot; use a droplet-shaped package default.
+  if (recipe.family === "water-fountain") {
+    for (const [slot, textureId] of Object.entries(imageSlotMap)) {
+      if (textureId === "rain-ripple") imageSlotMap[slot] = "fountain-droplet";
+    }
+  }
   const streams: CatalogMappedStream[] = recipe.streams.map(stream => {
     const textureId = imageSlotMap[stream.textureId];
     if (!textureId) throw new Error(`Catalog effect '${effectKey}' has no image mapping for slot '${stream.textureId}'.`);
@@ -308,6 +318,14 @@ export function resolveCatalogRecipe(source: CatalogRecipe, tuning: CatalogResol
     const value = controls[name];
     if (value !== undefined && !Number.isFinite(value)) throw new RangeError(`${name} must be finite.`);
   }
+  if (tuning.EmissionTimingJitterPercent !== undefined &&
+      (!Number.isFinite(tuning.EmissionTimingJitterPercent) || tuning.EmissionTimingJitterPercent < 0 || tuning.EmissionTimingJitterPercent > 90)) {
+    throw new RangeError("EmissionTimingJitterPercent must be in 0..90.");
+  }
+  if (DIRECTIONAL_STREAM_FAMILIES.has(recipe.family) && tuning.DirectionDegrees !== undefined &&
+      (tuning.DirectionDegrees < 0 || tuning.DirectionDegrees > 360)) {
+    throw new RangeError("DirectionDegrees must be in 0..360 for directional particle families.");
+  }
   if (controls.LifetimeMultiplier === 0 || controls.SizeMultiplier === 0) {
     throw new RangeError("LifetimeMultiplier and SizeMultiplier zero values must be omitted before component input.");
   }
@@ -397,6 +415,13 @@ export function mapCatalogStreamOverrides(
     const source = authored.streams[index];
     const stream = effective.streams[index];
     const override: import("./contracts.js").ParticleStreamOverrides = { ratePerSecond: stream.ratePerSecond };
+    if (DIRECTIONAL_STREAM_FAMILIES.has(authored.family) && tuning.DirectionDegrees !== undefined) {
+      const targetDegrees = ((tuning.DirectionDegrees % 360) + 360) % 360;
+      let deltaDegrees = (targetDegrees - 270 + 540) % 360 - 180;
+      // Keep the exact opposite heading deterministic at +180 degrees.
+      if (deltaDegrees === -180) deltaDegrees = 180;
+      override.velocityRotationRadians = deltaDegrees * Math.PI / 180;
+    }
     if (stream.colorTransitionSeconds !== undefined) override.colorTransitionSeconds = stream.colorTransitionSeconds;
     else if (stream.colorTransitionFraction !== undefined) override.colorTransitionFraction = stream.colorTransitionFraction;
     if (tuning.LifetimeMultiplier !== undefined && source.lifetimeTuningApplicable !== false) {

@@ -1,0 +1,362 @@
+{
+  "catalogEffects": [
+    {
+      "category": "PointParticleEffect",
+      "effectKey": "particle.water-fountain",
+      "displayName": "water-fountain",
+      "particleEffect": {
+        "recipe": {
+          "renderingMode": "point",
+          "family": "water-fountain",
+          "lifecycle": {
+            "transitionTimeMs": 10000,
+            "removalDurationMs": null
+          },
+          "presentation": {
+            "colorChangeMode": "birth-snapshot"
+          },
+          "streams": [
+            {
+              "id": "fountain-spray",
+              "textureId": "rain-ripple",
+              "layer": "pre-light",
+              "blendMode": "normal",
+              "ratePerSecond": 18,
+              "spawn": {
+                "kind": "point",
+                "radiusPx": 1.5
+              },
+              "lifeMinSeconds": 0.55,
+              "lifeMaxSeconds": 0.9,
+              "startElevationCells": 0,
+              "endElevationCells": 0.5,
+              "velocityXMinPxPerSecond": -14,
+              "velocityXMaxPxPerSecond": 14,
+              "velocityYMinPxPerSecond": -105,
+              "velocityYMaxPxPerSecond": -65,
+              "accelerationYPxPerSecond2": 170,
+              "startWidthPx": 4,
+              "startHeightPx": 4,
+              "endWidthPx": 2,
+              "endHeightPx": 2,
+              "startColor": "#d9f5ff",
+              "endColor": "#8bc9e8",
+              "startAlpha": 0.9,
+              "endAlpha": 0.1,
+              "occludeByCells": true,
+              "colorBinding": {
+                "control": "Colors",
+                "mode": "transition"
+              }
+            },
+            {
+              "id": "fountain-surge",
+              "textureId": "rain-ripple",
+              "layer": "pre-light",
+              "blendMode": "normal",
+              "ratePerSecond": 0,
+              "surgeOnly": true,
+              "burstCount": 12,
+              "spawn": {
+                "kind": "point",
+                "radiusPx": 2
+              },
+              "lifeMinSeconds": 0.55,
+              "lifeMaxSeconds": 0.9,
+              "startElevationCells": 0,
+              "endElevationCells": 0.5,
+              "velocityXMinPxPerSecond": -14,
+              "velocityXMaxPxPerSecond": 14,
+              "velocityYMinPxPerSecond": -105,
+              "velocityYMaxPxPerSecond": -65,
+              "accelerationYPxPerSecond2": 170,
+              "startWidthPx": 4,
+              "startHeightPx": 4,
+              "endWidthPx": 2,
+              "endHeightPx": 2,
+              "startColor": "#d9f5ff",
+              "endColor": "#8bc9e8",
+              "startAlpha": 0.9,
+              "endAlpha": 0.1,
+              "occludeByCells": true,
+              "colorBinding": {
+                "control": "Colors",
+                "mode": "transition"
+              }
+            }
+          ]
+        },
+        "imageSlots": {
+          "rain-ripple": "rain-ripple"
+        }
+      }
+    },
+    {
+      "category": "PointParticleEffect",
+      "effectKey": "particle.electrical-arcing",
+      "displayName": "electrical-arcing",
+      "particleEffect": {
+        "recipe": {
+          "renderingMode": "point",
+          "family": "electrical-arcing",
+          "lifecycle": {
+            "transitionTimeMs": 10000,
+            "removalDurationMs": null
+          },
+          "presentation": {
+            "colorChangeMode": "birth-snapshot"
+          },
+          "streams": [
+            {
+              "id": "arc-pulses",
+              "textureId": "fragment",
+              "layer": "post-light",
+              "blendMode": "add",
+              "ratePerSecond": 24,
+              "spawn": {
+                "kind": "point",
+                "radiusPx": 1
+              },
+              "lifeMinSeconds": 0.12,
+              "lifeMaxSeconds": 0.3,
+              "startElevationCells": 0,
+              "endElevationCells": 0.08,
+              "velocityXMinPxPerSecond": -18,
+              "velocityXMaxPxPerSecond": 18,
+              "velocityYMinPxPerSecond": -140,
+              "velocityYMaxPxPerSecond": -80,
+              "rotationMinRadians": 0,
+              "rotationMaxRadians": 6.2831853,
+              "startWidthPx": 4,
+              "startHeightPx": 2,
+              "endWidthPx": 1,
+              "endHeightPx": 1,
+              "startColor": "#fff7b0",
+              "endColor": "#4feaff",
+              "startAlpha": 1,
+              "endAlpha": 0,
+              "occludeByCells": true,
+              "colorBinding": {
+                "control": "Colors",
+                "mode": "transition"
+              }
+            },
+            {
+              "id": "arc-surge",
+              "textureId": "fragment",
+              "layer": "post-light",
+              "blendMode": "add",
+              "ratePerSecond": 0,
+              "surgeOnly": true,
+              "burstCount": 8,
+              "spawn": {
+                "kind": "point",
+                "radiusPx": 1
+              },
+              "lifeMinSeconds": 0.12,
+              "lifeMaxSeconds": 0.3,
+              "startElevationCells": 0,
+              "endElevationCells": 0.08,
+              "velocityXMinPxPerSecond": -18,
+              "velocityXMaxPxPerSecond": 18,
+              "velocityYMinPxPerSecond": -140,
+              "velocityYMaxPxPerSecond": -80,
+              "rotationMinRadians": 0,
+              "rotationMaxRadians": 6.2831853,
+              "startWidthPx": 4,
+              "startHeightPx": 2,
+              "endWidthPx": 1,
+              "endHeightPx": 1,
+              "startColor": "#fff7b0",
+              "endColor": "#4feaff",
+              "startAlpha": 1,
+              "endAlpha": 0,
+              "occludeByCells": true,
+              "colorBinding": {
+                "control": "Colors",
+                "mode": "transition"
+              }
+            }
+          ]
+        },
+        "imageSlots": {
+          "fragment": "fragment"
+        }
+      }
+    }
+  ],
+  "familyContracts": [
+    {
+      "family": "water-fountain",
+      "description": "A continuously emitting upward water stream attached to an object, with optional producer-triggered surges.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "label": "Size multiplier",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "label": "Spawn radius multiplier",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "description": "Primary and Secondary color the authored continuous spray and surge particles through their recipe color bindings. Set either role independently; an unset role keeps its recipe color.",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "DirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": 0,
+          "maximum": 360,
+          "label": "Direction",
+          "description": "Absolute stream heading in screen-space degrees. Omitted means the authored upward direction (270°). 0° points right, 90° down, 180° left, and 270° up; 360° is equivalent to 0°.",
+          "bindingBehavior": "Rotate each sampled authored velocity vector from its default 270° heading to this heading; additive velocity offsets are applied afterward.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "EmissionTimingJitterPercent",
+          "kind": "number",
+          "unit": "percent of nominal interval",
+          "minimum": 0,
+          "maximum": 90,
+          "label": "Emission timing jitter",
+          "description": "Bounds random variation in continuous inter-particle timing to this percentage on either side of the nominal interval. Omitted or 0% keeps fixed cadence; 50% allows intervals from 0.5× to 1.5× nominal. The mean interval remains nominal. This does not affect producer-triggered surges.",
+          "bindingBehavior": "For continuous streams, sample each interval uniformly from the nominal interval multiplied by 1 minus and 1 plus this percentage; keep the seeded sequence deterministic.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "rain-ripple",
+          "unit": "package texture ID"
+        }
+      ]
+    },
+    {
+      "family": "electrical-arcing",
+      "description": "A continuously emitting upward electrical arc attached to an object, with optional producer-triggered surges.",
+      "controls": [
+        {
+          "name": "EmissionRateMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Uniformly scales ratePerSecond on every applicable authored stream, preserving relative stream rates. Omitted means the neutral multiplier 1. Zero suppresses continuous rate-based emission.",
+          "label": "Emission rate multiplier",
+          "bindingBehavior": "Multiply each applicable stream ratePerSecond by this factor.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "LifetimeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales both authored lifeMinSeconds and lifeMaxSeconds on every eligible stream, preserving each stream range and differences between streams. Omitted means the neutral multiplier 1. Zero is omitted, preserving recipe-authored lifetimes and avoiding immediate onDeathStreamId follow-ups.",
+          "label": "Lifetime multiplier",
+          "bindingBehavior": "Multiply authored lifeMinSeconds and lifeMaxSeconds on each eligible stream; preserve range shape and stream-to-stream differences.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SizeMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Uniformly scales the authored particle size curve on every stream in this family, including optional end dimensions. Omitted means the neutral multiplier 1. Zero is omitted, preserving authored dimensions and avoiding invisible particles that still consume simulation capacity.",
+          "label": "Size multiplier",
+          "bindingBehavior": "Multiply authored startWidthPx and startHeightPx and, when present, endWidthPx and endHeightPx on each stream by this factor.",
+          "zeroBehavior": "omit"
+        },
+        {
+          "name": "SpawnRadiusMultiplier",
+          "kind": "number",
+          "unit": "multiplier",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "Scales each point or rectangle stream authored spawn extents while preserving their proportions. Omitted means the neutral multiplier 1. Zero collapses each affected spawn region to its center.",
+          "label": "Spawn radius multiplier",
+          "bindingBehavior": "Multiply point spawn radiusPx and innerRadiusPx, and rectangle spawn widthPx and heightPx, by this factor; do not change spawn centers.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "Colors",
+          "kind": "colorPair",
+          "unit": "two coordinated named sRGB hex color roles",
+          "bindingBehavior": "palette",
+          "description": "Primary and Secondary color the authored continuous arc and surge particles through their recipe color bindings. Set either role independently; an unset role keeps its recipe color.",
+          "zeroBehavior": "notApplicable"
+        },
+        {
+          "name": "DirectionDegrees",
+          "kind": "number",
+          "unit": "screen-space degrees",
+          "minimum": 0,
+          "maximum": 360,
+          "label": "Direction",
+          "description": "Absolute stream heading in screen-space degrees. Omitted means the authored upward direction (270°). 0° points right, 90° down, 180° left, and 270° up; 360° is equivalent to 0°.",
+          "bindingBehavior": "Rotate each sampled authored velocity vector from its default 270° heading to this heading; additive velocity offsets are applied afterward.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "EmissionTimingJitterPercent",
+          "kind": "number",
+          "unit": "percent of nominal interval",
+          "minimum": 0,
+          "maximum": 90,
+          "label": "Emission timing jitter",
+          "description": "Bounds random variation in continuous inter-particle timing to this percentage on either side of the nominal interval. Omitted or 0% keeps fixed cadence; 50% allows intervals from 0.5× to 1.5× nominal. The mean interval remains nominal. This does not affect producer-triggered surges.",
+          "bindingBehavior": "For continuous streams, sample each interval uniformly from the nominal interval multiplied by 1 minus and 1 plus this percentage; keep the seeded sequence deterministic.",
+          "zeroBehavior": "apply"
+        }
+      ],
+      "imageSlots": [
+        {
+          "name": "fragment",
+          "unit": "package texture ID"
+        }
+      ]
+    }
+  ]
+}

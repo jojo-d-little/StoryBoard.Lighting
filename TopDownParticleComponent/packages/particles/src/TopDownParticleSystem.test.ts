@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ParticleContainer, Texture } from "pixi.js";
 import { TopDownParticleSystem } from "./TopDownParticleSystem.js";
-import { resolveBurstCount } from "./catalog-adapter.js";
+import { mapCatalogStreamOverrides, resolveBurstCount, resolveCatalogRecipe } from "./catalog-adapter.js";
 import { recolorStyleColor } from "./particle-core.js";
-import type { ParticleEffectDefinition } from "./contracts.js";
+import type { ParticleEffectDefinition, ParticleStreamDefinition } from "./contracts.js";
+import type { CatalogRecipe } from "./catalog-adapter.js";
 
 const geometry = { widthPx: 200, heightPx: 120, cellSizePx: 20 };
 const effect: ParticleEffectDefinition = {
@@ -39,10 +40,118 @@ function system(): TopDownParticleSystem {
   return particles;
 }
 
+function emitBurstVelocities(stream: ParticleStreamDefinition, override: Record<string, number> = {}, count = 1): Array<{ x: number; y: number }> {
+  const particles = system();
+  try {
+    particles.registerEffect({ id: "velocity-test", streams: [{ ...stream, id: "velocity", ratePerSecond: 0 }] });
+    particles.emitBurst({
+      id: "velocity-burst", effectId: "velocity-test", xPx: 40, yPx: 40, count,
+      streamOverrides: { velocity: override }
+    });
+    const runtime = particles as unknown as { live: Array<{ velocityXPxPerSecond: number; velocityYPxPerSecond: number }> };
+    return runtime.live.map(particle => ({ x: particle.velocityXPxPerSecond, y: particle.velocityYPxPerSecond }));
+  } finally {
+    particles.dispose();
+  }
+}
+
+function cadenceCounts(jitterPercent: number | undefined, durationSeconds: number, ratePerSecond = 5): number[] {
+  const particles = system();
+  try {
+    particles.registerEffect({ ...effect, id: "cadence", streams: [{ ...effect.streams[0], ratePerSecond }] });
+    particles.upsertEmitter({ id: "cadence-emitter", effectId: "cadence", xPx: 40, yPx: 40,
+      ...(jitterPercent === undefined ? {} : { emissionTimingJitterPercent: jitterPercent }) });
+    particles.update(0);
+    const frames = Math.ceil(durationSeconds * 60);
+    const counts: number[] = [];
+    let previous = particles.getStats().emittedParticles;
+    for (let frame = 1; frame <= frames; frame++) {
+      particles.update(frame / 60);
+      const current = particles.getStats().emittedParticles;
+      counts.push(current - previous);
+      previous = current;
+    }
+    return counts;
+  } finally {
+    particles.dispose();
+  }
+}
+
 describe("TopDownParticleSystem", () => {
   it("keeps a flame's bright core while shifting the producer's chosen hue", () => {
     expect(recolorStyleColor("#ff9d34", "#ff9d34", "#4488ff")).toBe("#4488ff");
     expect(recolorStyleColor("#fff1a8", "#ff9d34", "#4488ff")).toBe("#b8bbff");
+  });
+
+  it("rotates sampled velocity vectors for bursts without changing magnitude or spread", () => {
+    const stream = { ...effect.streams[0], velocityXMinPxPerSecond: -8, velocityXMaxPxPerSecond: 8,
+      velocityYMinPxPerSecond: -20, velocityYMaxPxPerSecond: -4 };
+    const unrotated = emitBurstVelocities(stream, {}, 100);
+    const rotated = emitBurstVelocities(stream, { velocityRotationRadians: Math.PI / 2 }, 100);
+    expect(rotated).toHaveLength(unrotated.length);
+    for (let index = 0; index < unrotated.length; index++) {
+      expect(Math.hypot(rotated[index].x, rotated[index].y)).toBeCloseTo(Math.hypot(unrotated[index].x, unrotated[index].y), 10);
+      expect(rotated[index].x).toBeCloseTo(-unrotated[index].y, 10);
+      expect(rotated[index].y).toBeCloseTo(unrotated[index].x, 10);
+    }
+  });
+
+  it("applies additive offsets after rotation and leaves omitted rotation unchanged", () => {
+    const stream = { ...effect.streams[0], velocityXMinPxPerSecond: 3, velocityXMaxPxPerSecond: 3,
+      velocityYMinPxPerSecond: -4, velocityYMaxPxPerSecond: -4 };
+    expect(emitBurstVelocities(stream)[0]).toEqual({ x: 3, y: -4 });
+    const result = emitBurstVelocities(stream, {
+      velocityRotationRadians: Math.PI / 2,
+      velocityOffsetXPxPerSecond: 10,
+      velocityOffsetYPxPerSecond: 20
+    })[0];
+    expect(result.x).toBeCloseTo(14);
+    expect(result.y).toBeCloseTo(23);
+  });
+
+  it("uses the catalog heading transform for both continuous and burst emissions", () => {
+    const recipe: CatalogRecipe = {
+      renderingMode: "point", family: "water-fountain",
+      streams: [{ ...effect.streams[0], id: "velocity", ratePerSecond: 60,
+        velocityXMinPxPerSecond: 3, velocityXMaxPxPerSecond: 3,
+        velocityYMinPxPerSecond: -4, velocityYMaxPxPerSecond: -4 }]
+    };
+    const effective = resolveCatalogRecipe(recipe, { DirectionDegrees: 0 });
+    const mapped = mapCatalogStreamOverrides(recipe, effective, { DirectionDegrees: 0 });
+    const burst = emitBurstVelocities({ ...recipe.streams[0], id: "velocity" }, mapped.velocity)[0];
+    expect(burst.x).toBeCloseTo(4);
+    expect(burst.y).toBeCloseTo(3);
+
+    const particles = system();
+    try {
+      particles.registerEffect({ id: "continuous-direction", streams: [{ ...recipe.streams[0], ratePerSecond: 60 }] });
+      particles.upsertEmitter({ id: "continuous-direction", effectId: "continuous-direction", xPx: 40, yPx: 40,
+        streamOverrides: mapped });
+      particles.update(0);
+      particles.update(1 / 60);
+      const runtime = particles as unknown as { live: Array<{ velocityXPxPerSecond: number; velocityYPxPerSecond: number }> };
+      expect(runtime.live[0].velocityXPxPerSecond).toBeCloseTo(4);
+      expect(runtime.live[0].velocityYPxPerSecond).toBeCloseTo(3);
+    } finally {
+      particles.dispose();
+    }
+  });
+
+  it("uses seeded bounded jitter with stable sequences and the requested average cadence", () => {
+    const first = cadenceCounts(90, 60, 5);
+    const second = cadenceCounts(90, 60, 5);
+    expect(first).toEqual(second);
+    expect(first.reduce((sum, count) => sum + count, 0)).toBeGreaterThanOrEqual(270);
+    expect(first.reduce((sum, count) => sum + count, 0)).toBeLessThanOrEqual(330);
+
+    const eventFrames = first.flatMap((count, index) => count > 0 ? [index + 1] : []);
+    const frameGaps = eventFrames.slice(1).map((frame, index) => frame - eventFrames[index]);
+    expect(Math.min(...frameGaps)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...frameGaps)).toBeLessThanOrEqual(24);
+  });
+
+  it("preserves the fixed-rate schedule exactly when jitter is omitted or zero", () => {
+    expect(cadenceCounts(undefined, 3, 60)).toEqual(cadenceCounts(0, 3, 60));
   });
 
   it("orders emitter instances numerically and breaks ties by stable ID", () => {

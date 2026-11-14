@@ -14,6 +14,7 @@ are not optimized atlas entries.
 | `flame-tip.svg` | Compact, evenly bright tapered center mark designed to keep a producer tint visible without a white hotspot. |
 | `candle-smoke.svg` | Thin, softly curled smoke wisp for the candle's drifting trail style. |
 | `rain-ripple.svg` | Small top-down floor splash when a drop reaches the floor. |
+| `fountain-droplet.svg` | Compact upright droplet silhouette for upward fountain spray particles. |
 | `cloud-field.svg` | Seamless, irregular fractal-noise cloud banks for the visible cloud overlay. |
 | `stain-splatter-base.svg`, `stain-splatter-detail.svg` | Soft central stain and fine droplets for a directional spray mark. |
 | `stain-patch-base.svg`, `stain-patch-detail.svg` | Irregular translucent body and mottled detail for a soiled area. |

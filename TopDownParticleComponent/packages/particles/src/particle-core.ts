@@ -173,6 +173,9 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
     if (source.velocityOffsetYPxPerSecond !== undefined) {
       result.velocityOffsetYPxPerSecond = finite(source.velocityOffsetYPxPerSecond, "velocityOffsetYPxPerSecond");
     }
+    if (source.velocityRotationRadians !== undefined) {
+      result.velocityRotationRadians = finite(source.velocityRotationRadians, "velocityRotationRadians");
+    }
     if (source.windStretchScale !== undefined) result.windStretchScale = positive(source.windStretchScale, "windStretchScale");
     if (source.windStretchRotationRadians !== undefined) {
       result.windStretchRotationRadians = finite(source.windStretchRotationRadians, "windStretchRotationRadians");
@@ -203,6 +206,11 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
     xPx: finite(input.xPx, "emitter xPx"),
     yPx: finite(input.yPx, "emitter yPx"),
     active: input.active ?? true,
+    emissionTimingJitterPercent: (() => {
+      const jitter = finite(input.emissionTimingJitterPercent ?? 0, "emissionTimingJitterPercent");
+      if (jitter < 0 || jitter > 90) throw new RangeError("emissionTimingJitterPercent must be in 0..90.");
+      return jitter;
+    })(),
     surge,
     colorChangeMode,
     order,

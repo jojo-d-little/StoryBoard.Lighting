@@ -48,6 +48,8 @@ interface ParticleGroup {
 interface EmitterState {
   input: NormalizedEmitter;
   remainders: Map<string, number>;
+  intervalRemainders: Map<string, number>;
+  intervalRandomStates: Map<string, number>;
   surgeNextAt: number | null;
   surgeRandomState: number;
   windNudges: Map<string, WindNudgeState>;
@@ -649,6 +651,8 @@ export class TopDownParticleSystem {
     this.emitters.set(normalized.id, {
       input: normalized,
       remainders: previous?.input.effectId === normalized.effectId ? previous.remainders : new Map(),
+      intervalRemainders: previous?.input.effectId === normalized.effectId ? previous.intervalRemainders : new Map(),
+      intervalRandomStates: previous?.input.effectId === normalized.effectId ? previous.intervalRandomStates : new Map(),
       surgeNextAt: keepSurge ? previous!.surgeNextAt : null,
       surgeRandomState: keepSurge ? previous!.surgeRandomState : (normalized.surge?.seed ?? this.initialSeed) ^ this.hash(normalized.id),
       windNudges: previous?.input.effectId === normalized.effectId ? previous.windNudges : new Map(),
@@ -947,6 +951,17 @@ export class TopDownParticleSystem {
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   }
 
+  private emitterStreamRandom(emitter: EmitterState, streamId: string): number {
+    let value = emitter.intervalRandomStates.get(streamId) ??
+      ((this.initialSeed ^ this.hash(emitter.input.id) ^ this.hash(streamId)) >>> 0);
+    value = (value + 0x6D2B79F5) >>> 0;
+    emitter.intervalRandomStates.set(streamId, value);
+    let mixed = value;
+    mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  }
+
   private validateColorBindings(bindings: Record<string, ParticleColorBinding>, streamIds: Set<string>): void {
     for (const [id, binding] of Object.entries(bindings)) {
       if (!streamIds.has(id)) throw new Error(`Unknown color binding stream '${id}'.`);
@@ -1038,6 +1053,27 @@ export class TopDownParticleSystem {
       for (const stream of effect.streams) {
         const override = emitter.input.streamOverrides[stream.id];
         const rate = override?.ratePerSecond ?? stream.ratePerSecond;
+        const jitterPercent = emitter.input.emissionTimingJitterPercent ?? 0;
+        if (jitterPercent > 0 && rate > 0) {
+          let remaining = emitter.intervalRemainders.get(stream.id);
+          let timeLeft = dt;
+          const nextInterval = () => {
+            const nominalInterval = 1 / rate;
+            const jitterFraction = jitterPercent / 100;
+            return nominalInterval * (1 - jitterFraction + 2 * jitterFraction * this.emitterStreamRandom(emitter, stream.id));
+          };
+          if (remaining === undefined) remaining = nextInterval();
+          while (remaining <= timeLeft + 1e-12) {
+            timeLeft -= remaining;
+            const followUp = effect.streams.find(candidate => candidate.id === stream.onDeathStreamId);
+            const followUpOverride = followUp ? emitter.input.streamOverrides[followUp.id] : undefined;
+            this.spawn(stream, emitter.input.xPx, emitter.input.yPx, override, followUp, followUpOverride, emitter.input.id);
+            remaining = nextInterval();
+          }
+          emitter.intervalRemainders.set(stream.id, Math.max(0, remaining - timeLeft));
+          continue;
+        }
+        emitter.intervalRemainders.delete(stream.id);
         const accumulated = (emitter.remainders.get(stream.id) ?? 0) + rate * dt;
         const count = Math.floor(accumulated + 1e-9);
         emitter.remainders.set(stream.id, accumulated - count);
@@ -1122,8 +1158,13 @@ export class TopDownParticleSystem {
     const yPx = stream.spawn.kind === "room" ? edgePosition?.y ?? this.random() * this.geometry!.heightPx
       : stream.spawn.kind === "rectangle" ? centerY + (this.random() - 0.5) * (stream.spawn.heightPx ?? 0) * (override?.spawnExtentScale ?? radiusScale)
       : centerY + Math.sin(angle) * distance;
-    const velocityXPxPerSecond = this.between(stream.velocityXMinPxPerSecond, stream.velocityXMaxPxPerSecond) * speedScale + (override?.velocityOffsetXPxPerSecond ?? 0);
-    const velocityYPxPerSecond = this.between(stream.velocityYMinPxPerSecond, stream.velocityYMaxPxPerSecond) * speedScale + (override?.velocityOffsetYPxPerSecond ?? 0);
+    const sampledVelocityX = this.between(stream.velocityXMinPxPerSecond, stream.velocityXMaxPxPerSecond) * speedScale;
+    const sampledVelocityY = this.between(stream.velocityYMinPxPerSecond, stream.velocityYMaxPxPerSecond) * speedScale;
+    const velocityRotation = override?.velocityRotationRadians ?? 0;
+    const rotatedVelocityX = sampledVelocityX * Math.cos(velocityRotation) - sampledVelocityY * Math.sin(velocityRotation);
+    const rotatedVelocityY = sampledVelocityX * Math.sin(velocityRotation) + sampledVelocityY * Math.cos(velocityRotation);
+    const velocityXPxPerSecond = rotatedVelocityX + (override?.velocityOffsetXPxPerSecond ?? 0);
+    const velocityYPxPerSecond = rotatedVelocityY + (override?.velocityOffsetYPxPerSecond ?? 0);
     let skitter: LiveParticle["skitter"];
     const motionMix = roomStyle?.windMotionMix;
     if (edgeFlow && motionMix?.streamIds.has(stream.id) && flowSpeed > 0) {

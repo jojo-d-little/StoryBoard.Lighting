@@ -239,6 +239,8 @@ export interface ParticleStreamOverrides {
   colorTransitionSeconds?: number;
   velocityOffsetXPxPerSecond?: number;
   velocityOffsetYPxPerSecond?: number;
+  /** Rotates each sampled authored velocity before additive velocity offsets. */
+  velocityRotationRadians?: number;
   /** Multiplies local X size for wind-stretched streams. */
   windStretchScale?: number;
   /** Orients a wind-stretched stream along its wind vector. */
@@ -254,6 +256,8 @@ export interface ParticleEmitterInput {
   /** Instance render order; equal values are resolved by stable emitter ID. */
   order?: number;
   surge?: ParticleSurgeInput;
+  /** Uniform interval variation around the effective continuous stream cadence; 0 preserves fixed-rate scheduling. */
+  emissionTimingJitterPercent?: number;
   /** Defaults to birth-snapshot so existing particles keep their original palette. */
   colorChangeMode?: ParticleColorChangeMode;
   streamOverrides?: Record<string, ParticleStreamOverrides>;

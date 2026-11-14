@@ -5,6 +5,7 @@ const imageUrls = {
   smokePuff: new URL("../assets/default-images/smoke-puff.png", import.meta.url).href,
   sparkGlow: new URL("../assets/default-images/spark-glow.png", import.meta.url).href,
   rainRipple: new URL("../assets/default-images/rain-ripple.svg", import.meta.url).href,
+  fountainDroplet: new URL("../assets/default-images/fountain-droplet.svg", import.meta.url).href,
   snowflake: new URL("../assets/default-images/snowflake.svg", import.meta.url).href,
   fragment: new URL("../assets/default-images/fragment.svg", import.meta.url).href,
   rubbleChip: new URL("../assets/default-images/rubble-chip.svg", import.meta.url).href,
@@ -76,7 +77,7 @@ export async function loadDefaultParticleAssets(
   overrides: DefaultParticleAssetOverrides = {}
 ): Promise<DefaultParticleAssets> {
   const loaded = await loadTextures([
-    "smokePuff", "sparkGlow", "rainRipple", "snowflake", "fragment", "rubbleChip",
+    "smokePuff", "sparkGlow", "rainRipple", "fountainDroplet", "snowflake", "fragment", "rubbleChip",
     "softMote", "driftingMote", "organicMote", "torchFlame", "candleFlame",
     "flameTip", "candleSmoke", "leafOak", "leafMaple", "leafOval", "fogField", "cloudField"
   ]);
@@ -90,6 +91,7 @@ export async function loadDefaultParticleAssets(
     "spark-glow": spark,
     "rain-drop": rainDrop,
     "rain-ripple": loaded.rainRipple,
+    "fountain-droplet": loaded.fountainDroplet,
     snowflake: loaded.snowflake,
     fragment: loaded.fragment,
     "rubble-chip": loaded.rubbleChip,

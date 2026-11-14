@@ -281,6 +281,9 @@ export class TopDownEffects {
           active: input.enabled,
           order,
           colorChangeMode,
+          emissionTimingJitterPercent: registered.recipe.renderingMode === "point" &&
+            (registered.recipe.family === "water-fountain" || registered.recipe.family === "electrical-arcing")
+            ? input.tuning?.EmissionTimingJitterPercent ?? 0 : 0,
           surge: input.surge,
           streamOverrides: overrides
         };

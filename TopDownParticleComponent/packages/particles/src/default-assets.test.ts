@@ -14,14 +14,16 @@ describe("packaged particle defaults", () => {
       clouds: custom
     });
 
-    expect(load).toHaveBeenCalledTimes(18);
+    expect(load).toHaveBeenCalledTimes(19);
     expect(load.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
       expect.stringContaining("smoke-puff.png"),
+      expect.stringContaining("fountain-droplet.svg"),
       expect.stringContaining("fog-field.svg"),
       expect.stringContaining("cloud-field.svg")
     ]));
     expect(assets.particles["smoke-puff"]).toBe(custom);
     expect(assets.particles["spark-glow"]).toBe(Texture.WHITE);
+    expect(assets.particles["fountain-droplet"]).toBe(Texture.WHITE);
     expect(assets.fog).toBe(Texture.WHITE);
     expect(assets.clouds).toBe(custom);
     custom.destroy(true);

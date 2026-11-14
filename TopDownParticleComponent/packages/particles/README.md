@@ -221,7 +221,17 @@ particles follow the per-control behavior above.
 | `WindSpeedPxPerSecond`, `WindDirectionDegrees` | Pass resolved environmental wind through; zero speed is calm, zero degrees points right, and direction `-1` is calm. |
 | `Colors` | Apply the ordered pair using each stream's `colorBinding`, or both authored stain color roles. |
 | `Tint` | Replace overlay tint. |
-| `DirectionDegrees` | Set stain travel or orientation direction. |
+| `DirectionDegrees` | Set stain travel/orientation or rotate authored velocity samples for the `water-fountain` and `electrical-arcing` families. Direction uses screen-space degrees (0° right, 90° down, 180° left, 270° up); 360° wraps to 0°. |
+| `EmissionTimingJitterPercent` | For those two continuous point families, vary per-stream intervals uniformly around the cadence after `EmissionRateMultiplier`. Values are 0–90%; 0% preserves fixed-rate scheduling and surge-only streams are unaffected. |
+
+Directional recipes rotate each sampled velocity vector from their authored
+270° heading, then apply additive velocity offsets. The same stream override
+mapping can be passed to a persistent emitter or `emitBurst()` so an event
+uses the same heading. Omitted direction keeps the authored velocity samples.
+Timing jitter uses a deterministic random sequence per emitter and stream;
+changing it changes future intervals without changing particles already alive.
+The package includes `fountain-droplet` as the default water-fountain image.
+Image-slot mappings can still select a host-provided texture ID.
 
 Recipe stream values map directly to the particle stream contract. Catalog
 effect keys are runtime IDs; `family` selects the authoring contract only and

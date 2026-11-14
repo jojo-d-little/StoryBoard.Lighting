@@ -10,7 +10,7 @@ import {
   resolveCatalogRecipe,
   resolveWindVector
 } from "./catalog-adapter.js";
-import type { CatalogParticleEffect, CatalogTuningContractFixture } from "./catalog-adapter.js";
+import type { CatalogFamilyTuningContract, CatalogParticleEffect, CatalogRecipe, CatalogTuningContractFixture } from "./catalog-adapter.js";
 
 function fixture<T>(path: string): T {
   const text = readFileSync(new URL(path, import.meta.url), "utf8").replace(/^\uFEFF/, "");
@@ -19,7 +19,34 @@ function fixture<T>(path: string): T {
 
 const catalog = fixture<{ effects: CatalogParticleEffect[] }>("../../../effects/presentation-effects.catalog.json");
 const tuningContract = fixture<CatalogTuningContractFixture>("../../../effects/particle-effect-authoring.contract.json");
-const particleEffects = catalog.effects.filter(effect => effect.category === "ParticleEffect");
+const stage01 = fixture<{
+  catalogEffects: Array<Omit<CatalogParticleEffect, "category"> & { category: string }>;
+  familyContracts: CatalogFamilyTuningContract[];
+}>("../../../effects/directional-particle-stage-01.fixture.json");
+const stage01Effects: CatalogParticleEffect[] = stage01.catalogEffects.map(effect => ({ ...effect, category: "ParticleEffect" }));
+const particleEffects = [...catalog.effects.filter(effect => effect.category === "ParticleEffect"), ...stage01Effects];
+tuningContract.particleEffectFamilyTuningContracts.push(...stage01.familyContracts);
+
+function directionalRecipe(family: string): CatalogRecipe {
+  return {
+    renderingMode: "point",
+    family,
+    streams: [{
+      id: "stream", textureId: "slot", layer: "pre-light", ratePerSecond: 60,
+      spawn: { kind: "point", radiusPx: 0 }, lifeMinSeconds: 1, lifeMaxSeconds: 1,
+      velocityXMinPxPerSecond: 0, velocityXMaxPxPerSecond: 0,
+      velocityYMinPxPerSecond: -10, velocityYMaxPxPerSecond: -10,
+      startWidthPx: 2, startHeightPx: 2, startColor: "#ffffff"
+    }]
+  };
+}
+
+function directionalEffect(family: string, effectKey = `particle.${family}`, textureId = "rain-ripple"): CatalogParticleEffect {
+  return {
+    category: "ParticleEffect", effectKey, displayName: family,
+    particleEffect: { recipe: directionalRecipe(family, textureId), imageSlots: { slot: textureId } }
+  };
+}
 
 describe("Stage 08 catalog boundary", () => {
   it("adapts all catalog point and room stream recipes and resolves logical image slots", () => {
@@ -30,7 +57,7 @@ describe("Stage 08 catalog boundary", () => {
       expect(adapted.effect.id).toBe(effect.effectKey);
       expect(adapted.effect.streams.length).toBe(effect.particleEffect.recipe.streams.length);
       for (const stream of adapted.effect.streams) {
-        expect(effect.particleEffect.imageSlots?.[effect.particleEffect.recipe.streams.find(source => source.id === stream.id)!.textureId])
+        expect(adapted.imageSlotMap[effect.particleEffect.recipe.streams.find(source => source.id === stream.id)!.textureId])
           .toBe(stream.textureId);
         if (stream.surgeOnly) {
           expect(stream.burstCount).toBe(effect.particleEffect.recipe.streams.find(source => source.id === stream.id)!.burstCount ?? 1);
@@ -140,6 +167,58 @@ describe("Stage 08 catalog boundary", () => {
       .map(control => control.name)).toEqual(["SizeMultiplier", "OpacityMultiplier", "Colors", "DirectionDegrees"]);
   });
 
+  it("maps all five established controls for both Stage 01 directional families, including transition colors on continuous and surge streams", () => {
+    const establishedControls = ["EmissionRateMultiplier", "LifetimeMultiplier", "SizeMultiplier", "SpawnRadiusMultiplier", "Colors"];
+    const expectedControls = [...establishedControls, "DirectionDegrees", "EmissionTimingJitterPercent"];
+    const tuning = {
+      EmissionRateMultiplier: 1.5,
+      LifetimeMultiplier: 2,
+      SizeMultiplier: 1.25,
+      SpawnRadiusMultiplier: 3,
+      Colors: { primary: "#112233", secondary: "#445566" }
+    };
+
+    for (const effectKey of ["particle.water-fountain", "particle.electrical-arcing"]) {
+      const source = particleEffects.find(effect => effect.effectKey === effectKey)!;
+      const recipe = source.particleEffect.recipe;
+      if (recipe.renderingMode !== "point") throw new Error(`${effectKey} must use point rendering.`);
+      expect(getSupportedCatalogControls(recipe, tuningContract).map(control => control.name)).toEqual(expectedControls);
+
+      const continuous = recipe.streams.find(stream => stream.ratePerSecond > 0)!;
+      const surge = recipe.streams.find(stream => stream.surgeOnly)!;
+      expect(continuous).toBeDefined();
+      expect(surge).toBeDefined();
+      for (const stream of [continuous, surge]) {
+        expect(stream.colorBinding).toEqual({ control: "Colors", mode: "transition" });
+      }
+
+      const effective = resolveCatalogRecipe(recipe, tuning);
+      if (effective.renderingMode !== "point") throw new Error(`${effectKey} must resolve as a point recipe.`);
+      const overrides = mapCatalogStreamOverrides(recipe, effective, tuning);
+      for (const stream of [continuous, surge]) {
+        const resolved = effective.streams.find(candidate => candidate.id === stream.id)!;
+        expect(resolved.ratePerSecond).toBe(stream.ratePerSecond * tuning.EmissionRateMultiplier);
+        expect(resolved.lifeMinSeconds).toBe(stream.lifeMinSeconds * tuning.LifetimeMultiplier);
+        expect(resolved.lifeMaxSeconds).toBe(stream.lifeMaxSeconds * tuning.LifetimeMultiplier);
+        expect(resolved.startWidthPx).toBe(stream.startWidthPx * tuning.SizeMultiplier);
+        expect(resolved.endWidthPx).toBe(stream.endWidthPx! * tuning.SizeMultiplier);
+        expect(resolved.spawn.radiusPx).toBe(stream.spawn.radiusPx! * tuning.SpawnRadiusMultiplier);
+        expect(resolved.startColor).toBe(tuning.Colors.primary);
+        expect(resolved.endColor).toBe(tuning.Colors.secondary);
+        expect(overrides[stream.id]).toMatchObject({
+          ratePerSecond: resolved.ratePerSecond,
+          lifetimeScale: tuning.LifetimeMultiplier,
+          sizeScale: tuning.SizeMultiplier,
+          spawnExtentScale: tuning.SpawnRadiusMultiplier,
+          startColor: tuning.Colors.primary,
+          endColor: tuning.Colors.secondary
+        });
+      }
+      expect(surge.ratePerSecond).toBe(0);
+      expect(overrides[surge.id].ratePerSecond).toBe(0);
+    }
+  });
+
   it("preserves rain follow-up lifetime while proportionally tuning eligible streams", () => {
     const rain = particleEffects.find(effect => effect.effectKey === "particle.rain")!.particleEffect.recipe;
     if (rain.renderingMode !== "room") throw new Error("Rain fixture must use the room route.");
@@ -184,5 +263,45 @@ describe("Stage 08 catalog boundary", () => {
     const fire = particleEffects.find(effect => effect.effectKey === "particle.campfire")!.particleEffect.recipe;
     expect(() => resolveCatalogRecipe(fire, { LifetimeMultiplier: 0 })).toThrow(/must be omitted/);
     expect(() => resolveCatalogRecipe(fire, { SizeMultiplier: 0 })).toThrow(/must be omitted/);
+  });
+
+  it("maps directional family headings to shortest rotations and normalizes 360 degrees", () => {
+    const expected = new Map([[0, Math.PI / 2], [90, Math.PI], [180, -Math.PI / 2], [270, 0], [360, Math.PI / 2]]);
+    for (const family of ["water-fountain", "electrical-arcing"]) {
+      const source = directionalRecipe(family);
+      for (const [degrees, radians] of expected) {
+        const overrides = mapCatalogStreamOverrides(source, source, { DirectionDegrees: degrees });
+        expect(overrides.stream.velocityRotationRadians).toBeCloseTo(radians);
+      }
+      expect(mapCatalogStreamOverrides(source, source, {}).stream.velocityRotationRadians).toBeUndefined();
+      expect(() => resolveCatalogRecipe(source, { DirectionDegrees: 360.1 })).toThrow(/0\.\.360/);
+    }
+  });
+
+  it("keeps direction mapping isolated to fountain and electrical-arcing families", () => {
+    for (const family of ["water-spatter", "electrical-sparks", "surface-mark"]) {
+      const recipe = directionalRecipe(family);
+      const overrides = mapCatalogStreamOverrides(recipe, recipe, { DirectionDegrees: 0 });
+      expect(overrides.stream.velocityRotationRadians).toBeUndefined();
+    }
+  });
+
+  it("uses a fountain droplet default while preserving explicit image-slot texture overrides", () => {
+    const defaulted = adaptCatalogParticleEffect(directionalEffect("water-fountain"));
+    expect(defaulted.imageSlotMap.slot).toBe("fountain-droplet");
+    expect(defaulted.recipe.streams[0].textureId).toBe("fountain-droplet");
+
+    const custom = adaptCatalogParticleEffect(directionalEffect("water-fountain", "particle.water-fountain", "my-project-droplet"));
+    expect(custom.imageSlotMap.slot).toBe("my-project-droplet");
+    expect(custom.recipe.streams[0].textureId).toBe("my-project-droplet");
+  });
+
+  it("validates jitter bounds without treating it as an emission-rate multiplier", () => {
+    const source = directionalRecipe("water-fountain");
+    expect(resolveCatalogRecipe(source, { EmissionTimingJitterPercent: 0 }).streams[0].ratePerSecond).toBe(60);
+    expect(resolveCatalogRecipe(source, { EmissionTimingJitterPercent: 90 }).streams[0].ratePerSecond).toBe(60);
+    for (const value of [-0.1, 90.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => resolveCatalogRecipe(source, { EmissionTimingJitterPercent: value })).toThrow(/0\.\.90/);
+    }
   });
 });
