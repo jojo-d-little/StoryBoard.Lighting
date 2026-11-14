@@ -239,6 +239,10 @@ export interface ParticleStreamOverrides {
   colorTransitionSeconds?: number;
   velocityOffsetXPxPerSecond?: number;
   velocityOffsetYPxPerSecond?: number;
+  /** Absolute screen-space X acceleration for particles spawned after this update. */
+  accelerationXPxPerSecond2?: number;
+  /** Absolute screen-space Y acceleration for particles spawned after this update. */
+  accelerationYPxPerSecond2?: number;
   /** Rotates each sampled authored velocity before additive velocity offsets. */
   velocityRotationRadians?: number;
   /** Multiplies local X size for wind-stretched streams. */

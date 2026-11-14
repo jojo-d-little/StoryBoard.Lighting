@@ -131,6 +131,8 @@ interface LiveParticle {
   yPx: number;
   velocityXPxPerSecond: number;
   velocityYPxPerSecond: number;
+  accelerationXPxPerSecond2: number;
+  accelerationYPxPerSecond2: number;
   windOffsetXPxPerSecond: number;
   windOffsetYPxPerSecond: number;
   orbitCenterXPx?: number;
@@ -1022,8 +1024,8 @@ export class TopDownParticleSystem {
         this.releaseUnusedGroups(state.emitterId ?? "");
         continue;
       }
-      state.velocityXPxPerSecond += (state.stream.accelerationXPxPerSecond2 ?? 0) * dt;
-      state.velocityYPxPerSecond += (state.stream.accelerationYPxPerSecond2 ?? 0) * dt;
+      state.velocityXPxPerSecond += state.accelerationXPxPerSecond2 * dt;
+      state.velocityYPxPerSecond += state.accelerationYPxPerSecond2 * dt;
       const wind = this.windVelocityFor(state);
       if (state.orbitRadiusPx !== undefined) {
         state.orbitCenterXPx! += wind.x * dt;
@@ -1222,6 +1224,8 @@ export class TopDownParticleSystem {
       yPx,
       velocityXPxPerSecond,
       velocityYPxPerSecond,
+      accelerationXPxPerSecond2: override?.accelerationXPxPerSecond2 ?? stream.accelerationXPxPerSecond2 ?? 0,
+      accelerationYPxPerSecond2: override?.accelerationYPxPerSecond2 ?? stream.accelerationYPxPerSecond2 ?? 0,
       windOffsetXPxPerSecond: override?.velocityOffsetXPxPerSecond ?? 0,
       windOffsetYPxPerSecond: override?.velocityOffsetYPxPerSecond ?? 0,
       orbitCenterXPx: stream.orbitAngularSpeedRadiansPerSecond ? centerX : undefined,

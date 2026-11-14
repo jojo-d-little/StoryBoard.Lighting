@@ -147,6 +147,8 @@ export interface CatalogResolvedTuning {
   Tint?: string;
   DirectionDegrees?: number;
   EmissionTimingJitterPercent?: number;
+  AccelerationXPxPerSecond2?: number;
+  AccelerationYPxPerSecond2?: number;
 }
 
 export interface CatalogMappedStream extends CatalogParticleStream {
@@ -185,7 +187,9 @@ export const CATALOG_CONTROL_MAPPINGS = {
   Colors: "applies primary/secondary roles through each stream colorBinding or the stain palette",
   Tint: "replaces the overlay tint",
   DirectionDegrees: "sets stain direction or rotates authored point-particle velocity for directional water/electric families",
-  EmissionTimingJitterPercent: "varies continuous inter-particle intervals around the effective cadence for directional water/electric families"
+  EmissionTimingJitterPercent: "varies continuous inter-particle intervals around the effective cadence for directional water/electric families",
+  AccelerationXPxPerSecond2: "overrides screen-space X acceleration on water-fountain continuous and surge streams when supplied",
+  AccelerationYPxPerSecond2: "overrides screen-space Y acceleration on water-fountain continuous and surge streams when supplied"
 } as const;
 
 const DIRECTIONAL_STREAM_FAMILIES = new Set(["water-fountain", "electrical-arcing"]);
@@ -215,7 +219,7 @@ export function adaptCatalogParticleEffect(source: CatalogParticleEffect): Catal
   }
   const imageSlotMap = { ...(particleEffect.imageSlots ?? {}) };
   // Stage 01 keeps the authored rain-ripple slot; use a droplet-shaped package default.
-  if (recipe.family === "water-fountain") {
+  if (DIRECTIONAL_STREAM_FAMILIES.has(recipe.family)) {
     for (const [slot, textureId] of Object.entries(imageSlotMap)) {
       if (textureId === "rain-ripple") imageSlotMap[slot] = "fountain-droplet";
     }
@@ -321,6 +325,14 @@ export function resolveCatalogRecipe(source: CatalogRecipe, tuning: CatalogResol
   if (tuning.EmissionTimingJitterPercent !== undefined &&
       (!Number.isFinite(tuning.EmissionTimingJitterPercent) || tuning.EmissionTimingJitterPercent < 0 || tuning.EmissionTimingJitterPercent > 90)) {
     throw new RangeError("EmissionTimingJitterPercent must be in 0..90.");
+  }
+  if (recipe.family === "water-fountain") {
+    for (const name of ["AccelerationXPxPerSecond2", "AccelerationYPxPerSecond2"] as const) {
+      const value = tuning[name];
+      if (value !== undefined && (!Number.isFinite(value) || value < -90 || value > 90)) {
+        throw new RangeError(`${name} must be in -90..90 for directional stream families.`);
+      }
+    }
   }
   if (DIRECTIONAL_STREAM_FAMILIES.has(recipe.family) && tuning.DirectionDegrees !== undefined &&
       (tuning.DirectionDegrees < 0 || tuning.DirectionDegrees > 360)) {
@@ -441,6 +453,14 @@ export function mapCatalogStreamOverrides(
         const color = tuning.Colors[source.colorBinding.role ?? "primary"];
         override.startColor = color;
         override.endColor = color;
+      }
+    }
+    if (DIRECTIONAL_STREAM_FAMILIES.has(authored.family)) {
+      if (tuning.AccelerationXPxPerSecond2 !== undefined) {
+        override.accelerationXPxPerSecond2 = tuning.AccelerationXPxPerSecond2;
+      }
+      if (tuning.AccelerationYPxPerSecond2 !== undefined) {
+        override.accelerationYPxPerSecond2 = tuning.AccelerationYPxPerSecond2;
       }
     }
     if (source.isWindBlown && windSpeed > 0) {

@@ -169,7 +169,7 @@ describe("Stage 08 catalog boundary", () => {
 
   it("maps all five established controls for both Stage 01 directional families, including transition colors on continuous and surge streams", () => {
     const establishedControls = ["EmissionRateMultiplier", "LifetimeMultiplier", "SizeMultiplier", "SpawnRadiusMultiplier", "Colors"];
-    const expectedControls = [...establishedControls, "DirectionDegrees", "EmissionTimingJitterPercent"];
+    const sharedControls = [...establishedControls, "DirectionDegrees", "EmissionTimingJitterPercent"];
     const tuning = {
       EmissionRateMultiplier: 1.5,
       LifetimeMultiplier: 2,
@@ -182,7 +182,10 @@ describe("Stage 08 catalog boundary", () => {
       const source = particleEffects.find(effect => effect.effectKey === effectKey)!;
       const recipe = source.particleEffect.recipe;
       if (recipe.renderingMode !== "point") throw new Error(`${effectKey} must use point rendering.`);
-      expect(getSupportedCatalogControls(recipe, tuningContract).map(control => control.name)).toEqual(expectedControls);
+      expect(getSupportedCatalogControls(recipe, tuningContract).map(control => control.name)).toEqual([
+        ...sharedControls,
+        "AccelerationXPxPerSecond2", "AccelerationYPxPerSecond2"
+      ]);
 
       const continuous = recipe.streams.find(stream => stream.ratePerSecond > 0)!;
       const surge = recipe.streams.find(stream => stream.surgeOnly)!;
@@ -217,6 +220,43 @@ describe("Stage 08 catalog boundary", () => {
       expect(surge.ratePerSecond).toBe(0);
       expect(overrides[surge.id].ratePerSecond).toBe(0);
     }
+  });
+
+  it("maps signed screen-space acceleration on both fountain streams, preserving omissions and applying zero", () => {
+    const source = particleEffects.find(effect => effect.effectKey === "particle.water-fountain")!.particleEffect.recipe;
+    if (source.renderingMode !== "point") throw new Error("Fountain fixture must use point rendering.");
+    const continuous = source.streams.find(stream => stream.ratePerSecond > 0)!;
+    const surge = source.streams.find(stream => stream.surgeOnly)!;
+    expect(continuous.accelerationXPxPerSecond2).toBeUndefined();
+    expect(continuous.accelerationYPxPerSecond2).toBe(170);
+    expect(surge.accelerationYPxPerSecond2).toBe(170);
+
+    const omitted = mapCatalogStreamOverrides(source, resolveCatalogRecipe(source, { DirectionDegrees: 0 }), { DirectionDegrees: 0 });
+    expect(omitted[continuous.id]).not.toHaveProperty("accelerationXPxPerSecond2");
+    expect(omitted[continuous.id]).not.toHaveProperty("accelerationYPxPerSecond2");
+    expect(omitted[surge.id]).not.toHaveProperty("accelerationXPxPerSecond2");
+    expect(omitted[surge.id]).not.toHaveProperty("accelerationYPxPerSecond2");
+
+    const tuning = { DirectionDegrees: 0, AccelerationXPxPerSecond2: -28, AccelerationYPxPerSecond2: 0 };
+    const mapped = mapCatalogStreamOverrides(source, resolveCatalogRecipe(source, tuning), tuning);
+    for (const stream of [continuous, surge]) {
+      expect(mapped[stream.id]).toMatchObject({
+        velocityRotationRadians: expect.any(Number),
+        accelerationXPxPerSecond2: -28,
+        accelerationYPxPerSecond2: 0
+      });
+    }
+    expect(() => resolveCatalogRecipe(source, { AccelerationXPxPerSecond2: 90.1 })).toThrow(/-90\.\.90/);
+    expect(() => resolveCatalogRecipe(source, { AccelerationYPxPerSecond2: Number.NaN })).toThrow(/-90\.\.90/);
+
+    const sparks = directionalRecipe("electrical-sparks");
+    const arcing = directionalRecipe("electrical-arcing");
+    expect(mapCatalogStreamOverrides(arcing, arcing, tuning).stream).toMatchObject({
+      accelerationXPxPerSecond2: -28, accelerationYPxPerSecond2: 0
+    });
+    const isolated = mapCatalogStreamOverrides(sparks, sparks, tuning);
+    expect(isolated.stream.accelerationXPxPerSecond2).toBeUndefined();
+    expect(isolated.stream.accelerationYPxPerSecond2).toBeUndefined();
   });
 
   it("preserves rain follow-up lifetime while proportionally tuning eligible streams", () => {

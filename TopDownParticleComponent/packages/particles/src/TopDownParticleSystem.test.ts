@@ -137,6 +137,81 @@ describe("TopDownParticleSystem", () => {
     }
   });
 
+  it("keeps acceleration emitter-local for continuous and surge streams, preserves omission and zero, and snapshots retunes at birth", () => {
+    const particles = system();
+    try {
+      const continuous = { ...effect.streams[0], id: "continuous", ratePerSecond: 60,
+        accelerationXPxPerSecond2: 2, accelerationYPxPerSecond2: 3 };
+      const surge = { ...effect.streams[0], id: "surge", ratePerSecond: 0, surgeOnly: true, burstCount: 1,
+        accelerationXPxPerSecond2: -6, accelerationYPxPerSecond2: 7 };
+      particles.registerEffect({ id: "acceleration-test", streams: [continuous, surge] });
+
+      const emitter = (id: string, x: number, y: number, surgeX: number, surgeY: number) => ({
+        id, effectId: "acceleration-test", xPx: 40, yPx: 40,
+        streamOverrides: {
+          continuous: { accelerationXPxPerSecond2: x, accelerationYPxPerSecond2: y },
+          surge: { accelerationXPxPerSecond2: surgeX, accelerationYPxPerSecond2: surgeY }
+        }
+      });
+      particles.upsertEmitter(emitter("first", 10, -20, 4, -5));
+      particles.upsertEmitter(emitter("second", -11, 22, -8, 9));
+      particles.upsertEmitter({ id: "authored", effectId: "acceleration-test", xPx: 40, yPx: 40 });
+      particles.upsertEmitter({ id: "zero", effectId: "acceleration-test", xPx: 40, yPx: 40,
+        streamOverrides: {
+          continuous: { accelerationXPxPerSecond2: 0, accelerationYPxPerSecond2: 0 },
+          surge: { accelerationXPxPerSecond2: 0, accelerationYPxPerSecond2: 0 }
+        }
+      });
+      particles.update(0);
+      particles.update(1 / 60);
+
+      type RuntimeParticle = {
+        emitterId?: string;
+        stream: { id: string };
+        velocityXPxPerSecond: number;
+        velocityYPxPerSecond: number;
+        accelerationXPxPerSecond2: number;
+        accelerationYPxPerSecond2: number;
+      };
+      const live = () => (particles as unknown as { live: RuntimeParticle[] }).live;
+      const getParticle = (emitterId: string, streamId: string) => {
+        const particle = live().find(candidate => candidate.emitterId === emitterId && candidate.stream.id === streamId);
+        expect(particle, `${emitterId}/${streamId} should have emitted`).toBeDefined();
+        return particle!;
+      };
+      expect(getParticle("first", "continuous")).toMatchObject({ accelerationXPxPerSecond2: 10, accelerationYPxPerSecond2: -20 });
+      expect(getParticle("second", "continuous")).toMatchObject({ accelerationXPxPerSecond2: -11, accelerationYPxPerSecond2: 22 });
+      expect(getParticle("authored", "continuous")).toMatchObject({ accelerationXPxPerSecond2: 2, accelerationYPxPerSecond2: 3 });
+      expect(getParticle("zero", "continuous")).toMatchObject({ accelerationXPxPerSecond2: 0, accelerationYPxPerSecond2: 0 });
+
+      particles.sendStimulus({ id: "surge-first", emitterId: "first", kind: "burst", count: 1 });
+      particles.sendStimulus({ id: "surge-second", emitterId: "second", kind: "burst", count: 1 });
+      particles.sendStimulus({ id: "surge-authored", emitterId: "authored", kind: "burst", count: 1 });
+      particles.sendStimulus({ id: "surge-zero", emitterId: "zero", kind: "burst", count: 1 });
+      expect(getParticle("first", "surge")).toMatchObject({ accelerationXPxPerSecond2: 4, accelerationYPxPerSecond2: -5 });
+      expect(getParticle("second", "surge")).toMatchObject({ accelerationXPxPerSecond2: -8, accelerationYPxPerSecond2: 9 });
+      expect(getParticle("authored", "surge")).toMatchObject({ accelerationXPxPerSecond2: -6, accelerationYPxPerSecond2: 7 });
+      expect(getParticle("zero", "surge")).toMatchObject({ accelerationXPxPerSecond2: 0, accelerationYPxPerSecond2: 0 });
+
+      const existing = getParticle("first", "continuous");
+      particles.upsertEmitter(emitter("first", -30, 40, -50, 60));
+      expect(existing).toMatchObject({ accelerationXPxPerSecond2: 10, accelerationYPxPerSecond2: -20 });
+      const previousVelocityX = existing.velocityXPxPerSecond;
+      const previousVelocityY = existing.velocityYPxPerSecond;
+      particles.update(2 / 60);
+      expect(existing.velocityXPxPerSecond).toBeCloseTo(previousVelocityX + 10 / 60);
+      expect(existing.velocityYPxPerSecond).toBeCloseTo(previousVelocityY - 20 / 60);
+      const retunedContinuous = live().filter(candidate => candidate.emitterId === "first" && candidate.stream.id === "continuous").at(-1)!;
+      expect(retunedContinuous).toMatchObject({ accelerationXPxPerSecond2: -30, accelerationYPxPerSecond2: 40 });
+
+      particles.sendStimulus({ id: "surge-first-after-retune", emitterId: "first", kind: "burst", count: 1 });
+      const retunedSurge = live().filter(candidate => candidate.emitterId === "first" && candidate.stream.id === "surge").at(-1)!;
+      expect(retunedSurge).toMatchObject({ accelerationXPxPerSecond2: -50, accelerationYPxPerSecond2: 60 });
+    } finally {
+      particles.dispose();
+    }
+  });
+
   it("uses seeded bounded jitter with stable sequences and the requested average cadence", () => {
     const first = cadenceCounts(90, 60, 5);
     const second = cadenceCounts(90, 60, 5);

@@ -263,6 +263,28 @@
           "description": "Bounds random variation in continuous inter-particle timing to this percentage on either side of the nominal interval. Omitted or 0% keeps fixed cadence; 50% allows intervals from 0.5× to 1.5× nominal. The mean interval remains nominal. This does not affect producer-triggered surges.",
           "bindingBehavior": "For continuous streams, sample each interval uniformly from the nominal interval multiplied by 1 minus and 1 plus this percentage; keep the seeded sequence deterministic.",
           "zeroBehavior": "apply"
+        },
+        {
+          "name": "AccelerationXPxPerSecond2",
+          "kind": "number",
+          "unit": "room pixels per second squared",
+          "minimum": -90,
+          "maximum": 90,
+          "label": "Horizontal acceleration",
+          "description": "Signed screen-space acceleration in px/s². Positive X points right. Omitted preserves the recipe default of 0; explicit zero overrides the recipe.",
+          "bindingBehavior": "Override accelerationXPxPerSecond2 on continuous and surge streams when supplied; omission preserves authored recipe values.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "AccelerationYPxPerSecond2",
+          "kind": "number",
+          "unit": "room pixels per second squared",
+          "minimum": -90,
+          "maximum": 90,
+          "label": "Vertical acceleration",
+          "description": "Signed screen-space acceleration in px/s². Positive Y points down. Omitted preserves the recipe default of 170; explicit zero overrides the recipe.",
+          "bindingBehavior": "Override accelerationYPxPerSecond2 on continuous and surge streams when supplied; omission preserves authored recipe values.",
+          "zeroBehavior": "apply"
         }
       ],
       "imageSlots": [
@@ -348,6 +370,28 @@
           "label": "Emission timing jitter",
           "description": "Bounds random variation in continuous inter-particle timing to this percentage on either side of the nominal interval. Omitted or 0% keeps fixed cadence; 50% allows intervals from 0.5× to 1.5× nominal. The mean interval remains nominal. This does not affect producer-triggered surges.",
           "bindingBehavior": "For continuous streams, sample each interval uniformly from the nominal interval multiplied by 1 minus and 1 plus this percentage; keep the seeded sequence deterministic.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "AccelerationXPxPerSecond2",
+          "kind": "number",
+          "unit": "room pixels per second squared",
+          "minimum": -90,
+          "maximum": 90,
+          "label": "Horizontal acceleration",
+          "description": "Signed screen-space acceleration in px/s². Positive X points right. Omitted preserves the authored recipe default; explicit zero overrides it.",
+          "bindingBehavior": "Override accelerationXPxPerSecond2 on continuous and surge streams when supplied; omission preserves authored recipe values.",
+          "zeroBehavior": "apply"
+        },
+        {
+          "name": "AccelerationYPxPerSecond2",
+          "kind": "number",
+          "unit": "room pixels per second squared",
+          "minimum": -90,
+          "maximum": 90,
+          "label": "Vertical acceleration",
+          "description": "Signed screen-space acceleration in px/s². Positive Y points down. Omitted preserves the authored recipe default; explicit zero overrides it.",
+          "bindingBehavior": "Override accelerationYPxPerSecond2 on continuous and surge streams when supplied; omission preserves authored recipe values.",
           "zeroBehavior": "apply"
         }
       ],

@@ -173,6 +173,12 @@ export function normalizeEmitter(input: ParticleEmitterInput): NormalizedEmitter
     if (source.velocityOffsetYPxPerSecond !== undefined) {
       result.velocityOffsetYPxPerSecond = finite(source.velocityOffsetYPxPerSecond, "velocityOffsetYPxPerSecond");
     }
+    if (source.accelerationXPxPerSecond2 !== undefined) {
+      result.accelerationXPxPerSecond2 = finite(source.accelerationXPxPerSecond2, "accelerationXPxPerSecond2");
+    }
+    if (source.accelerationYPxPerSecond2 !== undefined) {
+      result.accelerationYPxPerSecond2 = finite(source.accelerationYPxPerSecond2, "accelerationYPxPerSecond2");
+    }
     if (source.velocityRotationRadians !== undefined) {
       result.velocityRotationRadians = finite(source.velocityRotationRadians, "velocityRotationRadians");
     }

@@ -223,6 +223,7 @@ particles follow the per-control behavior above.
 | `Tint` | Replace overlay tint. |
 | `DirectionDegrees` | Set stain travel/orientation or rotate authored velocity samples for the `water-fountain` and `electrical-arcing` families. Direction uses screen-space degrees (0° right, 90° down, 180° left, 270° up); 360° wraps to 0°. |
 | `EmissionTimingJitterPercent` | For those two continuous point families, vary per-stream intervals uniformly around the cadence after `EmissionRateMultiplier`. Values are 0–90%; 0% preserves fixed-rate scheduling and surge-only streams are unaffected. |
+| `AccelerationXPxPerSecond2`, `AccelerationYPxPerSecond2` | Override signed screen-space acceleration for water-fountain and electrical-arcing continuous and surge streams. Omission preserves authored values; explicit zero applies. Acceleration does not rotate with `DirectionDegrees`, and each particle keeps its birth acceleration when its emitter is retuned. |
 
 Directional recipes rotate each sampled velocity vector from their authored
 270° heading, then apply additive velocity offsets. The same stream override
@@ -230,6 +231,11 @@ mapping can be passed to a persistent emitter or `emitBurst()` so an event
 uses the same heading. Omitted direction keeps the authored velocity samples.
 Timing jitter uses a deterministic random sequence per emitter and stream;
 changing it changes future intervals without changing particles already alive.
+Directional-family acceleration overrides use screen axes (positive X right,
+positive Y down) and are captured when each particle is spawned, so retuning an
+emitter affects new particles while living particles continue along their
+existing trajectory. The two components are independent for each emitter and
+are not rotated with `DirectionDegrees`.
 The package includes `fountain-droplet` as the default water-fountain image.
 Image-slot mappings can still select a host-provided texture ID.
 
