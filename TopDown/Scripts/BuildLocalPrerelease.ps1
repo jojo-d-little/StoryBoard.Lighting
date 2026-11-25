@@ -3,14 +3,18 @@
 Builds a local prerelease tarball from the current Lighting working tree.
 
 .DESCRIPTION
-Runs build and validation, then packs a temporary copy with a prerelease
-version. The source manifest, Git history, and remote registry are untouched.
+Runs build and validation, packs a temporary copy with a prerelease version,
+then installs and smoke-tests that exact tarball in a clean consumer. By
+default, the preview targets the next patch version (for example, 0.1.4
+becomes 0.1.5-preview.<timestamp>.<nonce>). The tarball and checksum manifest
+are written to the output directory; the source manifest, Git history, and
+remote registry are untouched.
 
 .EXAMPLE
 .\Scripts\BuildLocalPrerelease.ps1
 
 .EXAMPLE
-.\Scripts\BuildLocalPrerelease.ps1 -Version 0.2.0-preview.1 -OutputDirectory C:\Temp\LightingPreviews
+.\Scripts\BuildLocalPrerelease.ps1 -Version 0.1.5-preview.1 -OutputDirectory C:\Temp\LightingPreviews
 #>
 [CmdletBinding()]
 param(
@@ -31,17 +35,17 @@ if ($package.name -ne '@jojo-d-little/storyboard-lighting') {
 }
 
 if (-not $Version) {
-    if ([string]$package.version -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.\d+') {
+    if ([string]$package.version -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
         throw "Cannot derive a preview version from '$($package.version)'. Pass -Version explicitly."
     }
-    $nextMinor = [int]$matches.minor + 1
+    $nextPatch = [long]$matches.patch + 1
     $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')
     $nonce = Get-Random -Minimum 100000 -Maximum 999999
-    $Version = "$($matches.major).$nextMinor.0-preview.$stamp.$nonce"
+    $Version = "$($matches.major).$($matches.minor).$nextPatch-preview.$stamp.$nonce"
 }
 
 if (-not $OutputDirectory) {
-    $OutputDirectory = Join-Path ([System.IO.Path]::GetTempPath()) 'StoryboardLightingPrereleases'
+    $OutputDirectory = 'C:\work\LocalNpmDevFeed'
 }
 $OutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
@@ -84,7 +88,7 @@ try {
         throw "npm pack failed with exit code $LASTEXITCODE."
     }
     $packEntries = @(($packJson -join "`n") | ConvertFrom-Json)
-    if ($packEntries.Count -ne 1 -or $packEntries[0].version -ne $Version) {
+    if ($packEntries.Count -ne 1 -or $packEntries[0].name -ne $package.name -or $packEntries[0].version -ne $Version) {
         throw 'npm pack did not produce the expected preview version.'
     }
     $tarballPath = Join-Path $OutputDirectory $packEntries[0].filename
@@ -96,8 +100,65 @@ try {
         throw 'The preview tarball is missing the built JavaScript or type declarations.'
     }
 
+    $consumerRoot = Join-Path $stageRoot 'consumer'
+    New-Item -ItemType Directory -Path $consumerRoot | Out-Null
+    Push-Location -LiteralPath $consumerRoot
+    try {
+        Invoke-CheckedNpm -Arguments @('init', '--yes')
+        Invoke-CheckedNpm -Arguments @(
+            'install',
+            '--no-save',
+            '--package-lock=false',
+            '--ignore-scripts',
+            $tarballPath,
+            'pixi.js@8.21.0'
+        )
+
+        $consumerScript = @"
+import { TopDownLightingPipeline } from '$($package.name)';
+
+const pipeline = new TopDownLightingPipeline({ renderer: {} });
+pipeline.submitFrame({ pointLights: [{ x: 10, y: 20 }] });
+if (pipeline.getOutputs() !== null) throw new Error('Expected no outputs before room setup');
+pipeline.dispose();
+console.log('Packed prerelease consumer smoke test passed.');
+"@
+        $consumerScriptPath = Join-Path $consumerRoot 'consumer-smoke.mjs'
+        Set-Content -LiteralPath $consumerScriptPath -Value $consumerScript -Encoding utf8
+        & node $consumerScriptPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Packed prerelease consumer smoke test failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    $hash = (Get-FileHash -LiteralPath $tarballPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $commit = (& git -C $root rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not determine the source Git commit.'
+    }
+    $workingTreeDirty = [bool](& git -C $root status --porcelain)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not determine whether the source working tree is dirty.'
+    }
+    $metadata = [ordered]@{
+        package = $package.name
+        version = $Version
+        tarball = [System.IO.Path]::GetFileName($tarballPath)
+        sha256 = $hash
+        sourceCommit = $commit
+        sourceWorkingTreeDirty = $workingTreeDirty
+        createdUtc = (Get-Date).ToUniversalTime().ToString('o')
+    }
+    $metadataPath = "$tarballPath.manifest.json"
+    $metadata | ConvertTo-Json | Set-Content -LiteralPath $metadataPath -Encoding utf8
+
     Write-Host "Local prerelease: $Version"
     Write-Host "Tarball: $tarballPath" -ForegroundColor Green
+    Write-Host "SHA-256: $hash"
+    Write-Host "Build manifest: $metadataPath"
     Write-Host 'Run this from the consumer npm project:'
     Write-Host ('npm install --no-save --no-package-lock "' + $tarballPath + '"') -ForegroundColor Cyan
     Write-Host 'Nothing was committed, tagged, or published.'

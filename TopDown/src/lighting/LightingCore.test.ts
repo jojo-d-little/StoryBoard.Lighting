@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   evaluatePointLight,
   getBlockerBoundsPx,
+  getBlockerSignedDistancePx,
   normalizeBlockerInput,
   normalizeLightColor01,
   normalizePointLightDefaultsInput,
+  normalizeShadowStartElevationScale,
+  normalizeLightingPipelineInput,
+  calculateShadowOnsetAmount,
   normalizePointLightInput,
   normalizeRoomGeometryInput,
   normalizeRoomLightingInput,
@@ -63,8 +67,97 @@ describe("lighting core normalization", () => {
       sizeYCells: 3,
       cornerStyle: "round",
       elevationCells: 0,
-      strength: 1
+      strength: 1,
+      shadowStartDistancePx: 0,
+      shadowStartSoftness: 0
     });
+  });
+
+  it("normalizes shadow onset blocker and pipeline values", () => {
+    expect(normalizeBlockerInput({
+      xPx: 0,
+      yPx: 0,
+      shadowStartDistancePx: 999,
+      shadowStartSoftness: -1
+    })).toMatchObject({ shadowStartDistancePx: 200, shadowStartSoftness: 0 });
+    expect(normalizeBlockerInput({
+      xPx: 0,
+      yPx: 0,
+      shadowStartDistancePx: Number.NaN,
+      shadowStartSoftness: 4
+    })).toMatchObject({ shadowStartDistancePx: 0, shadowStartSoftness: 1 });
+    expect(normalizeShadowStartElevationScale(-1)).toBe(0);
+    expect(normalizeShadowStartElevationScale(9)).toBe(2);
+    expect(normalizeShadowStartElevationScale(Number.NaN)).toBe(0.5);
+    expect(normalizeLightingPipelineInput({ shadowSoften: -2, shadowStartElevationScale: 99 })).toEqual({
+      shadowSoften: 0,
+      shadowStartElevationScale: 2
+    });
+  });
+
+  it("calculates hard, soft, and elevation-scaled shadow onset endpoints", () => {
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 100, softness: 0, elevationScale: 0.5,
+      lightHeightCells: 2, blockerHeightCells: 2, distanceFromFootprintPx: 99
+    })).toBe(0);
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 100, softness: 0, elevationScale: 0.5,
+      lightHeightCells: 2, blockerHeightCells: 2, distanceFromFootprintPx: 100
+    })).toBe(1);
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 100, softness: 1, elevationScale: 0.5,
+      lightHeightCells: 2, blockerHeightCells: 2, distanceFromFootprintPx: 50
+    })).toBeCloseTo(0.5);
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 100, softness: 1, elevationScale: 0.5,
+      lightHeightCells: 2, blockerHeightCells: 2, distanceFromFootprintPx: 100
+    })).toBe(1);
+
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 100, softness: 0.5, elevationScale: 0,
+      lightHeightCells: 10, blockerHeightCells: 1, distanceFromFootprintPx: 100
+    })).toBe(1);
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 100, softness: 0.5, elevationScale: 2,
+      lightHeightCells: 3, blockerHeightCells: 1, distanceFromFootprintPx: 375
+    })).toBeCloseTo(0.5);
+  });
+
+  it("measures shadow onset from the blocker footprint in every direction", () => {
+    const blocker = normalizeBlockerInput({
+      xPx: 100,
+      yPx: 100,
+      sizeXCells: 2,
+      sizeYCells: 2
+    });
+
+    expect(getBlockerSignedDistancePx(blocker, 199, 140, 40)).toBeCloseTo(19);
+    expect(getBlockerSignedDistancePx(blocker, 200, 140, 40)).toBeCloseTo(20);
+    expect(getBlockerSignedDistancePx(blocker, 140, 199, 40)).toBeCloseTo(19);
+    expect(getBlockerSignedDistancePx(blocker, 140, 200, 40)).toBeCloseTo(20);
+    expect(getBlockerSignedDistancePx(blocker, 200, 200, 40)).toBeCloseTo(Math.sqrt(800));
+
+    const roundedBlocker = normalizeBlockerInput({
+      xPx: 100,
+      yPx: 100,
+      sizeXCells: 2,
+      sizeYCells: 2,
+      cornerStyle: "round"
+    });
+    expect(getBlockerSignedDistancePx(roundedBlocker, 100, 100, 40)).toBeCloseTo(
+      Math.sqrt(800) - 20
+    );
+
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 20, softness: 0, elevationScale: 0,
+      lightHeightCells: 1, blockerHeightCells: 1,
+      distanceFromFootprintPx: getBlockerSignedDistancePx(blocker, 199, 140, 40)
+    })).toBe(0);
+    expect(calculateShadowOnsetAmount({
+      baseDistancePx: 20, softness: 0, elevationScale: 0,
+      lightHeightCells: 1, blockerHeightCells: 1,
+      distanceFromFootprintPx: getBlockerSignedDistancePx(blocker, 200, 140, 40)
+    })).toBe(1);
   });
 
   it("rejects legacy cell coordinates and invalid pixel positions", () => {

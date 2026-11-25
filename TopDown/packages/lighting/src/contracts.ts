@@ -88,6 +88,10 @@ export interface BlockerInput {
   elevationCells?: number;
   /** Occlusion strength from transparent (`0`) to fully blocking (`1`). */
   strength?: number;
+  /** Base shadow onset distance in room-image pixels. */
+  shadowStartDistancePx?: number;
+  /** Normalized shadow onset softness from hard (`0`) to soft (`1`). */
+  shadowStartSoftness?: number;
 }
 
 /** Pixel-space bounds derived from a blocker by `getBlockerBoundsPx()`. */
@@ -165,6 +169,8 @@ export interface PointLightDefaultsInput {
 export interface LightingPipelineInput {
   /** Occlusion blur amount in the range `0..4`; larger values soften shadows more. */
   shadowSoften?: number;
+  /** Elevation multiplier for blocker shadow onset; range `0..2`. */
+  shadowStartElevationScale?: number;
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   evaluatePointLight,
   getBlockerBoundsPx,
   normalizeBlockerInput,
+  normalizeLightingPipelineInput,
   normalizePointLightDefaultsInput,
   normalizePointLightInput,
   normalizeRoomGeometryInput,
@@ -69,6 +70,7 @@ type UniformValue = {
 type UniformValues = Record<string, UniformValue>;
 
 const DEFAULT_SHADOW_SOFTEN = 1.5;
+const DEFAULT_SHADOW_START_ELEVATION_SCALE = 0.5;
 
 /**
  * PixiJS-owned rendering implementation for the top-down lighting pipeline.
@@ -85,7 +87,10 @@ export class TopDownLightingPipeline {
   private roomGeometry: RoomGeometryInput | null = null;
   private roomLighting: NormalizedRoomLighting = normalizeRoomLightingInput({});
   private pointLightDefaults: NormalizedPointLightDefaults = normalizePointLightDefaultsInput({});
-  private pipeline: Required<LightingPipelineInput> = { shadowSoften: DEFAULT_SHADOW_SOFTEN };
+  private pipeline: Required<LightingPipelineInput> = {
+    shadowSoften: DEFAULT_SHADOW_SOFTEN,
+    shadowStartElevationScale: DEFAULT_SHADOW_START_ELEVATION_SCALE
+  };
   private pointLights: NormalizedPointLight[] = [];
   private blockers: Required<BlockerInput>[] = [];
   private passes: PassResources | null = null;
@@ -105,6 +110,8 @@ export class TopDownLightingPipeline {
   private readonly blockerCornerStyles: Float32Array;
   private readonly blockerElevationCells: Float32Array;
   private readonly blockerStrengths: Float32Array;
+  private readonly blockerShadowStartDistancesPx: Float32Array;
+  private readonly blockerShadowStartSoftness: Float32Array;
 
   constructor(options: TopDownLightingPipelineOptions) {
     this.renderer = options.renderer;
@@ -127,6 +134,8 @@ export class TopDownLightingPipeline {
     this.blockerCornerStyles = new Float32Array(this.maxBlockers);
     this.blockerElevationCells = new Float32Array(this.maxBlockers);
     this.blockerStrengths = new Float32Array(this.maxBlockers);
+    this.blockerShadowStartDistancesPx = new Float32Array(this.maxBlockers);
+    this.blockerShadowStartSoftness = new Float32Array(this.maxBlockers);
   }
 
   setRoomTexture(setup: RoomTextureSetup): void {
@@ -156,9 +165,7 @@ export class TopDownLightingPipeline {
     const source = frame ?? {};
     this.roomLighting = normalizeRoomLightingInput(source.roomLighting, this.roomLighting);
     this.pointLightDefaults = normalizePointLightDefaultsInput(source.pointLightDefaults, this.pointLightDefaults);
-    this.pipeline = {
-      shadowSoften: clampShadowSoften(source.pipeline?.shadowSoften ?? this.pipeline.shadowSoften)
-    };
+    this.pipeline = normalizeLightingPipelineInput(source.pipeline, this.pipeline);
     this.pointLights = Array.isArray(source.pointLights)
       ? source.pointLights.slice(0, this.maxLights).map(normalizePointLightInput)
       : [];
@@ -330,10 +337,18 @@ export class TopDownLightingPipeline {
       uLightDir: { value: this.lightDirections, type: "vec2<f32>", size: this.maxLights },
       uLightConeDeg: { value: this.lightConeAnglesDeg, type: "f32", size: this.maxLights },
       uLightHeightCells: { value: this.lightHeightCells, type: "f32", size: this.maxLights },
+      uCellSizePx: { value: 1, type: "f32" },
+      uBlockerPosPx: { value: this.blockerPositions, type: "vec2<f32>", size: this.maxBlockers },
+      uBlockerHalfSizeXCells: { value: this.blockerHalfSizeXCells, type: "f32", size: this.maxBlockers },
+      uBlockerHalfSizeYCells: { value: this.blockerHalfSizeYCells, type: "f32", size: this.maxBlockers },
+      uBlockerCornerStyle: { value: this.blockerCornerStyles, type: "f32", size: this.maxBlockers },
+      uBlockerShadowStartDistancePx: { value: this.blockerShadowStartDistancesPx, type: "f32", size: this.maxBlockers },
+      uBlockerShadowStartSoftness: { value: this.blockerShadowStartSoftness, type: "f32", size: this.maxBlockers },
+      uShadowStartElevationScale: { value: this.pipeline.shadowStartElevationScale, type: "f32" },
       uHeightEncodeScale: { value: 16, type: "f32" }
     });
     return Filter.from({
-      gl: { vertex: DEFAULT_FILTER_VERTEX, fragment: createLightFragment(this.maxLights) },
+      gl: { vertex: DEFAULT_FILTER_VERTEX, fragment: createLightFragment(this.maxLights, this.maxBlockers) },
       resources: {
         uniforms,
         uOcclusionMap: occlusionSoftTexture.source,
@@ -413,6 +428,8 @@ export class TopDownLightingPipeline {
         this.blockerCornerStyles[i] = blocker.cornerStyle === "round" ? 1 : 0;
         this.blockerElevationCells[i] = blocker.elevationCells;
         this.blockerStrengths[i] = blocker.strength;
+        this.blockerShadowStartDistancesPx[i] = blocker.shadowStartDistancePx;
+        this.blockerShadowStartSoftness[i] = blocker.shadowStartSoftness;
       } else {
         this.blockerPositions[i * 2] = -1e6;
         this.blockerPositions[i * 2 + 1] = -1e6;
@@ -421,6 +438,8 @@ export class TopDownLightingPipeline {
         this.blockerCornerStyles[i] = 0;
         this.blockerElevationCells[i] = 0;
         this.blockerStrengths[i] = 0;
+        this.blockerShadowStartDistancesPx[i] = 0;
+        this.blockerShadowStartSoftness[i] = 0;
       }
     }
   }
@@ -435,6 +454,8 @@ export class TopDownLightingPipeline {
     lightUniforms.uAmbient = this.roomLighting.ambient;
     lightUniforms.uAmbientColor = this.roomLighting.ambientColor;
     lightUniforms.uLightCount = this.pointLights.length;
+    lightUniforms.uCellSizePx = this.roomGeometry.cellSizePx;
+    lightUniforms.uShadowStartElevationScale = this.pipeline.shadowStartElevationScale;
   }
 
   private releasePassResources(): void {

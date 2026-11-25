@@ -76,7 +76,7 @@ export function createOcclusionFragment(maxBlockers: number): string {
   `;
 }
 
-export function createLightFragment(maxLights: number): string {
+export function createLightFragment(maxLights: number, maxBlockers: number): string {
   return `
     precision mediump float;
 
@@ -92,6 +92,14 @@ export function createLightFragment(maxLights: number): string {
     uniform vec2 uLightDir[${maxLights}];
     uniform float uLightConeDeg[${maxLights}];
     uniform float uLightHeightCells[${maxLights}];
+    uniform float uCellSizePx;
+    uniform vec2 uBlockerPosPx[${maxBlockers}];
+    uniform float uBlockerHalfSizeXCells[${maxBlockers}];
+    uniform float uBlockerHalfSizeYCells[${maxBlockers}];
+    uniform float uBlockerCornerStyle[${maxBlockers}];
+    uniform float uBlockerShadowStartDistancePx[${maxBlockers}];
+    uniform float uBlockerShadowStartSoftness[${maxBlockers}];
+    uniform float uShadowStartElevationScale;
     uniform sampler2D uOcclusionMap;
     uniform sampler2D uOcclusionOccupancyMap;
     uniform float uHeightEncodeScale;
@@ -101,6 +109,24 @@ export function createLightFragment(maxLights: number): string {
     vec4 rawOcclusionAt(vec2 pixelPos) {
       vec2 texel = clamp(floor(pixelPos), vec2(0.0), uImageSize - vec2(1.0));
       return texture(uOcclusionOccupancyMap, (texel + vec2(0.5)) / uImageSize);
+    }
+
+    float blockerSignedDistanceCells(
+      vec2 pixelPos,
+      vec2 blockerPosPx,
+      float halfSizeXCells,
+      float halfSizeYCells,
+      float cornerStyle
+    ) {
+      vec2 deltaCells = abs((pixelPos - blockerPosPx) / max(uCellSizePx, 0.0001));
+      float cornerRadius = min(0.5 * cornerStyle, min(halfSizeXCells, halfSizeYCells));
+      vec2 boxOffset = deltaCells - vec2(
+        halfSizeXCells - cornerRadius,
+        halfSizeYCells - cornerRadius
+      );
+      return length(max(boxOffset, vec2(0.0)))
+        + min(max(boxOffset.x, boxOffset.y), 0.0)
+        - cornerRadius;
     }
 
     float rayShadowAmountByMap(
@@ -140,10 +166,62 @@ export function createLightFragment(maxLights: number): string {
         // at 3 cells and receiver at 1 cell, the ray is 2 cells high halfway.
         float rayHeightAtSample = mix(lightHeightCells, receiverHeightCells, rayFraction);
 
-        // A positive-height blocker shadows the receiver only where its top
-        // reaches or exceeds that sloping ray; keep the strongest obstruction.
+        // Preserve the existing positive-height and ray-height qualification.
         if (blockerHeightCells >= rayHeightAtSample && blockerHeightCells > 0.0) {
-          strongestShadow = max(strongestShadow, blockerStrength);
+          float rawBlockerId = floor(rawOcclusionAt(samplePos).b * 255.0 + 0.5);
+          int targetBlockerIndex = int(rawBlockerId) - 1;
+          // Blurring can erase or blend blocker IDs around footprint edges.
+          // Associate those samples with the nearest authored blocker instead.
+          if (targetBlockerIndex < 0 || targetBlockerIndex >= ${maxBlockers}) {
+            float nearestFootprintDistanceCells = 1e20;
+            int nearestBlockerIndex = -1;
+            for (int blockerIndex = 0; blockerIndex < ${maxBlockers}; blockerIndex++) {
+              float sampleDistanceCells = blockerSignedDistanceCells(
+                samplePos,
+                uBlockerPosPx[blockerIndex],
+                uBlockerHalfSizeXCells[blockerIndex],
+                uBlockerHalfSizeYCells[blockerIndex],
+                uBlockerCornerStyle[blockerIndex]
+              );
+              if (sampleDistanceCells < nearestFootprintDistanceCells) {
+                nearestFootprintDistanceCells = sampleDistanceCells;
+                nearestBlockerIndex = blockerIndex;
+              }
+            }
+            targetBlockerIndex = nearestBlockerIndex;
+          }
+
+          float onsetAmount = 0.0;
+          for (int blockerIndex = 0; blockerIndex < ${maxBlockers}; blockerIndex++) {
+            if (blockerIndex == targetBlockerIndex) {
+              float signedDistanceCells = blockerSignedDistanceCells(
+                pixelPos,
+                uBlockerPosPx[blockerIndex],
+                uBlockerHalfSizeXCells[blockerIndex],
+                uBlockerHalfSizeYCells[blockerIndex],
+                uBlockerCornerStyle[blockerIndex]
+              );
+              float distanceFromFootprintPx = max(0.0, signedDistanceCells * uCellSizePx);
+              float baseStartPx = uBlockerShadowStartDistancePx[blockerIndex];
+              float softness = uBlockerShadowStartSoftness[blockerIndex];
+              float elevationDifference = max(0.0, lightHeightCells - blockerHeightCells);
+              float effectiveStartPx = baseStartPx
+                * (1.0 + elevationDifference * uShadowStartElevationScale);
+
+              onsetAmount = 1.0;
+              if (effectiveStartPx > 0.0) {
+                if (softness <= 0.0) {
+                  onsetAmount = distanceFromFootprintPx < effectiveStartPx ? 0.0 : 1.0;
+                } else {
+                  float fadeWidthPx = effectiveStartPx * softness;
+                  float fadeStartPx = effectiveStartPx - fadeWidthPx;
+                  onsetAmount = smoothstep(fadeStartPx, effectiveStartPx, distanceFromFootprintPx);
+                }
+              }
+              break;
+            }
+          }
+          strongestShadow = max(strongestShadow, blockerStrength * onsetAmount);
         }
       }
       return strongestShadow;

@@ -4,6 +4,7 @@ import type {
   BlockerCornerStyle,
   FlickerStyle,
   LightMotionMode,
+  LightingPipelineInput,
   PointLightDefaultsInput,
   PointLightInput,
   RoomGeometryInput,
@@ -148,6 +149,60 @@ export function normalizePointLightInput(light: PointLightInput | unknown): Norm
   };
 }
 
+export function normalizeShadowStartDistancePx(value: unknown): number {
+  return clampRange(toNumberOr(value, 0), 0, 200);
+}
+
+export function normalizeShadowStartSoftness(value: unknown): number {
+  return clampRange(toNumberOr(value, 0), 0, 1);
+}
+
+export function normalizeShadowStartElevationScale(value: unknown): number {
+  return clampRange(toNumberOr(value, 0.5), 0, 2);
+}
+
+export function calculateShadowOnsetAmount(options: {
+  baseDistancePx: number;
+  softness: number;
+  elevationScale: number;
+  lightHeightCells: number;
+  blockerHeightCells: number;
+  distanceFromFootprintPx: number;
+}): number {
+  const base = normalizeShadowStartDistancePx(options.baseDistancePx);
+  const softness = normalizeShadowStartSoftness(options.softness);
+  const scale = normalizeShadowStartElevationScale(options.elevationScale);
+  const elevationDifference = Math.max(0, options.lightHeightCells - options.blockerHeightCells);
+  const effective = base * (1 + elevationDifference * scale);
+  const dist = Number.isFinite(options.distanceFromFootprintPx)
+    ? Math.max(0, options.distanceFromFootprintPx)
+    : 0;
+  if (!(effective > 0)) return 1;
+  if (softness <= 0) return dist >= effective ? 1 : 0;
+  const fadeWidth = effective * softness;
+  const fadeStart = effective - fadeWidth;
+  if (dist <= fadeStart) return 0;
+  if (dist >= effective) return 1;
+  const t = (dist - fadeStart) / (effective - fadeStart);
+  return t * t * (3 - 2 * t);
+}
+
+export function normalizeLightingPipelineInput(
+  input: LightingPipelineInput | unknown,
+  fallback: LightingPipelineInput = {}
+): Required<LightingPipelineInput> {
+  const source = (input ?? {}) as Partial<LightingPipelineInput>;
+  const fallbackSource = (fallback ?? {}) as Partial<LightingPipelineInput>;
+  return {
+    shadowSoften: clampRange(toNumberOr(source.shadowSoften, toNumberOr(fallbackSource.shadowSoften, 1.5)), 0, 4),
+    shadowStartElevationScale: normalizeShadowStartElevationScale(
+      source.shadowStartElevationScale == null
+        ? fallbackSource.shadowStartElevationScale
+        : source.shadowStartElevationScale
+    )
+  };
+}
+
 export function normalizeBlockerInput(blocker: BlockerInput | unknown): Required<BlockerInput> {
   const source = (blocker ?? {}) as Partial<BlockerInput>;
   if (typeof source.xPx !== "number" || !Number.isFinite(source.xPx)
@@ -161,7 +216,9 @@ export function normalizeBlockerInput(blocker: BlockerInput | unknown): Required
     sizeYCells: Math.max(1, Math.floor(toNumberOr(source.sizeYCells, 1))),
     cornerStyle: normalizeBlockerCornerStyle(source.cornerStyle),
     elevationCells: Math.max(0, toNumberOr(source.elevationCells, 0)),
-    strength: clampRange(toNumberOr(source.strength, 1), 0, 1)
+    strength: clampRange(toNumberOr(source.strength, 1), 0, 1),
+    shadowStartDistancePx: normalizeShadowStartDistancePx(source.shadowStartDistancePx),
+    shadowStartSoftness: normalizeShadowStartSoftness(source.shadowStartSoftness)
   };
 }
 
@@ -186,6 +243,28 @@ export function getBlockerBoundsPx(
     centerPxX: leftPx + widthPx * 0.5,
     centerPxY: topPx + heightPx * 0.5
   };
+}
+
+export function getBlockerSignedDistancePx(
+  blocker: Required<BlockerInput>,
+  pixelX: number,
+  pixelY: number,
+  cellSizePx: number
+): number {
+  const safeCellSizePx = Math.max(1, toNumberOr(cellSizePx, 1));
+  const bounds = getBlockerBoundsPx(blocker, safeCellSizePx);
+  const halfSizeXCells = blocker.sizeXCells * 0.5;
+  const halfSizeYCells = blocker.sizeYCells * 0.5;
+  const cornerRadiusCells = blocker.cornerStyle === "round"
+    ? Math.min(0.5, halfSizeXCells, halfSizeYCells)
+    : 0;
+  const deltaXCells = Math.abs((pixelX - bounds.centerPxX) / safeCellSizePx);
+  const deltaYCells = Math.abs((pixelY - bounds.centerPxY) / safeCellSizePx);
+  const offsetXCells = deltaXCells - (halfSizeXCells - cornerRadiusCells);
+  const offsetYCells = deltaYCells - (halfSizeYCells - cornerRadiusCells);
+  const outsideDistanceCells = Math.hypot(Math.max(offsetXCells, 0), Math.max(offsetYCells, 0));
+  const insideDistanceCells = Math.min(Math.max(offsetXCells, offsetYCells), 0);
+  return (outsideDistanceCells + insideDistanceCells - cornerRadiusCells) * safeCellSizePx;
 }
 
 export function normalizeRoomGeometryInput(geometry: RoomGeometryInput | unknown): RoomGeometryInput {

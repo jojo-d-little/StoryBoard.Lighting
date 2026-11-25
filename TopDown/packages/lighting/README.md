@@ -42,6 +42,14 @@ room-image pixels. Positions may be fractional during movement; `sizeXCells`
 and `sizeYCells` remain whole-cell dimensions. The former `cellX` and `cellY`
 position fields are no longer accepted.
 
+Blockers may set `shadowStartDistancePx` (`0..200`) and
+`shadowStartSoftness` (`0..1`). The onset distance is measured outward from the
+blocker's square or rounded-rectangle footprint to each receiving pixel, so
+the gap does not depend on ray-march step spacing. Softness fades the shadow in
+over a portion of that distance. `pipeline.shadowStartElevationScale` (`0..2`,
+default `0.5`) scales the distance by the positive difference between light
+and blocker elevation.
+
 This package is published privately to GitHub Packages under the
 `@jojo-d-little` scope. Consumers must map that scope to
 `https://npm.pkg.github.com` and authenticate with permission to read the
